@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import wx
 
 from . import monkey_patch
@@ -33,164 +35,38 @@ matplotlib.rcParams['ytick.minor.width'] = 0.5
 
 matplotlib.use('WXAgg')
 
+from ..wrappers import art3d as _
 
-from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg  # NOQA
-from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg  # NOQA
-from mpl_toolkits.mplot3d.art3d import Line3D, Path3DCollection  # NOQA
-from mpl_toolkits.mplot3d import axes3d  # NOQA
-from matplotlib.backend_bases import ResizeEvent  # NOQA
-from mpl_toolkits.mplot3d.axes3d import _Quaternion  # NOQA
+from mpl_toolkits.mplot3d.art3d import Line3D, Path3DCollection
 from decimal import Decimal as decimal  # NOQA
+
 import matplotlib.pyplot  # NOQA
 import numpy as np  # NOQA
 
+from wx.lib.agw import aui
+from ..widgets import aui_toolbar
+from .. import image as _image
 
-class Canvas(FigureCanvasWxAgg):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.Bind(wx.EVT_ERASE_BACKGROUND, self._on_erase_background)
-
-    # bypass erasing the background when the plot is redrawn.
-    # This helps to eliminate the flicker that is seen when a redraw occurs.
-    # the second piece needed to eliminate the flicker is seen below
-    def _on_erase_background(self, _):
-        pass
-
-    # override the _on_paint method in the canvas
-    # this is done so double buffer is used which eliminates the flicker
-    # that is seen when the plot redraws
-    def _on_paint(self, event):
-        drawDC = wx.BufferedPaintDC(self)
-        if not self._isDrawn:
-            self.draw(drawDC=drawDC)
-        else:
-            self.gui_repaint(drawDC=drawDC)
-        drawDC.Destroy()
-
-    # override the _on_size method in the canvas
-    def _on_size(self, event):
-        self._update_device_pixel_ratio()
-        sz = self.GetParent().GetSizer()
-        if sz:
-            si = sz.GetItem(self)
-        else:
-            si = None
-
-        if sz and si and not si.Proportion and not si.Flag & wx.EXPAND:
-            size = self.GetMinSize()
-        else:
-            size = self.GetClientSize()
-            size.IncTo(self.GetMinSize())
-
-        if getattr(self, "_width", None):
-            if size == (self._width, self._height):
-                return
-
-        self._width, self._height = size
-        self._isDrawn = False
-
-        if self._width <= 1 or self._height <= 1:
-            return
-
-        dpival = self.figure.dpi
-
-        if wx.Platform != '__WXMSW__':
-            scale = self.GetDPIScaleFactor()
-            dpival /= scale
-
-        winch = self._width / dpival
-        hinch = self._height / dpival
-        self.figure.set_size_inches(winch, hinch, forward=False)
-
-        self.Refresh(eraseBackground=False)
-        ResizeEvent("resize_event", self)._process()  # NOQA
-        self.draw_idle()
+from . import canvas as _canvas
 
 
-# monkey patch the _on_move method for Axes3D
-# this is done to change the handling of the right mouse button.
-# the right mouse button pans the plot instead of zooming.
-# The mouse wheel is used to zoom instead (as it should be)
-def _on_move(self, event):
-    if not self.button_pressed or event.key:
-        return
-
-    if self.get_navigate_mode() is not None:
-        return
-
-    if self.M is None:
-        return
-
-    x, y = event.xdata, event.ydata
-
-    if x is None or event.inaxes != self:
-        return
-
-    dx, dy = x - self._sx, y - self._sy
-    w = self._pseudo_w
-    h = self._pseudo_h
-
-    if self.button_pressed in self._rotate_btn:
-        if dx == 0 and dy == 0:
-            return
-
-        style = matplotlib.rcParams['axes3d.mouserotationstyle']
-        if style == 'azel':
-            roll = np.deg2rad(self.roll)
-
-            delev = (-(dy / h) * 180 * np.cos(roll) +
-                     (dx / w) * 180 * np.sin(roll))
-
-            dazim = (-(dy / h) * 180 * np.sin(roll) -
-                     (dx / w) * 180 * np.cos(roll))
-
-            elev = self.elev + delev
-            azim = self.azim + dazim
-            roll = self.roll
-        else:
-            q = _Quaternion.from_cardan_angles(
-                *np.deg2rad((self.elev, self.azim, self.roll)))
-
-            if style == 'trackball':
-                k = np.array([0, -dy / h, dx / w])
-                nk = np.linalg.norm(k)
-                th = nk / matplotlib.rcParams['axes3d.trackballsize']
-                dq = _Quaternion(np.cos(th), k * np.sin(th) / nk)
-            else:  # 'sphere', 'arcball'
-                current_vec = self._arcball(self._sx / w, self._sy / h)
-                new_vec = self._arcball(x / w, y / h)
-                if style == 'sphere':
-                    dq = _Quaternion.rotate_from_to(current_vec, new_vec)
-                else:  # 'arcball'
-                    dq = (_Quaternion(0, new_vec) *
-                          _Quaternion(0, -current_vec))
-
-            q = dq * q
-            elev, azim, roll = np.rad2deg(q.as_cardan_angles())
-
-        vertical_axis = self._axis_names[self._vertical_axis]
-
-        self.view_init(elev=elev, azim=azim, roll=roll,
-                       vertical_axis=vertical_axis, share=True)
-
-        self.stale = True
-
-    elif self.button_pressed in self._zoom_btn:
-        px, py = self.transData.transform([self._sx, self._sy])
-        self.start_pan(px, py, 2)
-        self.drag_pan(2, None, event.x, event.y)
-        self.end_pan()
-
-    self._sx, self._sy = x, y
-    self.get_figure(root=True).canvas.draw_idle()
-
-
-setattr(axes3d.Axes3D, '_on_move', _on_move)
+if TYPE_CHECKING:
+    from .. import ui
 
 
 class Editor3D(wx.Panel):
+
+    ID_POINTER = wx.NewIdRef()
+    ID_TRANSITION = wx.NewIdRef()
+    ID_CONNECTOR = wx.NewIdRef()
+    ID_TERMINAL = wx.NewIdRef()
+    ID_SEAL = wx.NewIdRef()
+    ID_WIRE = wx.NewIdRef()
+    ID_SPLICE = wx.NewIdRef()
+    ID_BUNDLE_COVER = wx.NewIdRef()
+    ID_TPA_LOCK = wx.NewIdRef()
+    ID_CPA_LOCK = wx.NewIdRef()
+
     def __init__(self, parent):
         self.key = None
         self.selected_object = None
@@ -199,7 +75,9 @@ class Editor3D(wx.Panel):
         self.object_tooltip = None
         self._offset = None
         self.data = None
+        self.mode = self.ID_POINTER
 
+        self.mainframe: "ui.MainFrame" = parent.GetParent()
         wx.Panel.__init__(self, parent, wx.ID_ANY, style=wx.BORDER_NONE)
 
         v_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -215,7 +93,7 @@ class Editor3D(wx.Panel):
         ax.set_ylabel('y')
         ax.set_zlabel('z')
 
-        self.canvas = Canvas(self, wx.ID_ANY, self.fig)
+        self.canvas = _canvas.Canvas(self, wx.ID_ANY, self.fig)
 
         # MouseEvent
         self.canvas.mpl_connect("button_press_event", self.on_press)
@@ -245,23 +123,97 @@ class Editor3D(wx.Panel):
         # ResizeEvent
         self.canvas.mpl_connect("resize_event", self.on_resize)
 
-        toolbar = NavigationToolbar2WxAgg(self.canvas)
-        toolbar.Realize()
+        # toolbar = NavigationToolbar2WxAgg(self.canvas)
+        # toolbar.Realize()
 
         h_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
         v_sizer.Add(h_sizer, 1, wx.EXPAND)
-        v_sizer.Add(toolbar, 0, wx.LEFT | wx.EXPAND)
+        # v_sizer.Add(toolbar, 0, wx.LEFT | wx.EXPAND)
 
         self.SetSizer(v_sizer)
-        toolbar.update()
+        # toolbar.update()
+
+        self.editor3d_toolbar = aui_toolbar.AuiToolBar(self.mainframe, style=aui.AUI_TB_GRIPPER | aui.AUI_TB_TEXT)
+        self.editor3d_toolbar.SetToolBitmapSize((48, 48))
+
+        pointer = _image.icons.pointer.resize(48, 48)
+        transition = _image.icons.transition.resize(48, 48)
+        connector = _image.icons.connector.resize(48, 48)
+        terminal = _image.icons.terminal.resize(48, 48)
+        seal = _image.icons.seal.resize(48, 48)
+        wire = _image.icons.wire.resize(48, 48)
+        splice = _image.icons.splice.resize(48, 48)
+        bundle_cover = _image.icons.bundle_cover.resize(48, 48)
+        tpa_lock = _image.icons.tpa_lock.resize(48, 48)
+        cpa_lock = _image.icons.cpa_lock.resize(48, 48)
+
+        btns = [
+            (self.ID_POINTER, pointer, 'Pointer'),
+            (self.ID_TRANSITION, transition, 'Transition'),
+            (self.ID_CONNECTOR, connector, 'Connector'),
+            (self.ID_TERMINAL, terminal, 'Terminal'),
+            (self.ID_SEAL, seal, 'Seal'),
+            (self.ID_WIRE, wire, 'Wire'),
+            (self.ID_SPLICE, splice, 'Splice'),
+            (self.ID_BUNDLE_COVER, bundle_cover, 'Bundle'),
+            (self.ID_TPA_LOCK, tpa_lock, 'TPA'),
+            (self.ID_CPA_LOCK, cpa_lock, 'CPA')
+        ]
+
+        self.buttons = []
+
+        for id, img, label in btns:
+            item = self.editor3d_toolbar.AddTool(id, label, img.bitmap,
+                                                 img.disabled_bitmap,
+                                                 aui.ITEM_RADIO)
+            self.buttons.append(item)
+            self.Bind(wx.EVT_MENU, self.on_tool, id=id)
+
+        #
+        # self.editor3d_toolbar.AddTool(ID_TRANSITION, 'Add Transition', transition.bitmap, transition.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        # self.editor3d_toolbar.AddTool(ID_CONNECTOR, 'Add Connector', connector.bitmap, connector.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        # self.editor3d_toolbar.AddTool(ID_TERMINAL, 'Add Terminal', terminal.bitmap, terminal.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        # self.editor3d_toolbar.AddTool(ID_SEAL, 'Add Seal', seal.bitmap, seal.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        # self.editor3d_toolbar.AddTool(ID_WIRE, 'Add Wire', wire.bitmap, wire.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        # self.editor3d_toolbar.AddTool(ID_SPLICE, 'Add Splice', splice.bitmap, splice.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        # self.editor3d_toolbar.AddTool(ID_BUNDLE_COVER, 'Add Bundle', bundle_cover.bitmap, bundle_cover.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        # self.editor3d_toolbar.AddTool(ID_TPA_LOCK, 'Add TPA', tpa_lock.bitmap, tpa_lock.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        # self.editor3d_toolbar.AddTool(ID_CPA_LOCK, 'Add CPA', cpa_lock.bitmap, tpa_lock.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
+        self.editor3d_toolbar.Realize()
+        self.editor3d_toolbar_pane = (
+            aui.AuiPaneInfo()
+            .Floatable(True)
+            .Top()
+            .Gripper(True)
+            .Resizable(True)
+            .Movable(True)
+            .Name('editor3d_toolbar')
+            .CaptionVisible(False)
+            .PaneBorder(True)
+            .CloseButton(False)
+            .MaximizeButton(False)
+            .MinimizeButton(False)
+            .PinButton(False)
+            .DestroyOnClose(False)
+            .Show()
+            .ToolbarPane()
+        )
+
+        self.mainframe.manager.AddPane(self.editor3d_toolbar, self.editor3d_toolbar_pane)
+        self.mainframe.manager.Update()
 
         def _do():
+            self.buttons[0].SetState(aui.AUI_BUTTON_STATE_CHECKED)
+
             for value in self.axes._axis_map.values():  # NOQA
                 value.set_ticks_position('both')
                 value.set_label_position('both')
             self.canvas.draw()
 
         wx.CallAfter(_do)
+
+    def on_tool(self, evt):
+        self.mode = evt.GetId()
 
     def on_close(self, evt):
         pass
@@ -281,7 +233,7 @@ class Editor3D(wx.Panel):
 
     def on_pick(self, evt):
         if isinstance(evt.artist, Path3DCollection):
-            self.selected_object = evt.artist
+            self.selected_object = evt.artist.get_py_data()
             self.axes.button_pressed = None
 
     def on_resize(self, evt):
@@ -345,13 +297,13 @@ class Editor3D(wx.Panel):
         ys = self.axes.format_ydata(p1[1])
         zs = self.axes.format_zdata(p1[2])
 
-        def get_float(val):
+        def get_decimal(val):
             if val.startswith('−'):
                 return decimal(str(-float(val[1:])))
             else:
                 return decimal(str(float(val)))
 
-        return get_float(xs), get_float(ys), get_float(zs)
+        return get_decimal(xs), get_decimal(ys), get_decimal(zs)
 
     def on_motion(self, event):
         if event.button == 3:
@@ -387,61 +339,30 @@ class Editor3D(wx.Panel):
             except TypeError:
                 return
 
-            old_pos = self.artists_mapping[self.selected_object]
+            old_pos = self.selected_object.center
 
-            old_x, old_y, old_z = old_pos[:-1]
+            old_x, old_y, old_z = tuple(old_pos)
 
             if self._offset is None:
                 if self.key == 'x':
-                    self._offset = decimal(str(old_x)) - x
+                    self._offset = old_x - x
                 elif self.key == 'y':
-                    self._offset = decimal(str(old_y)) - y
+                    self._offset = old_y - y
                 else:  # 'z'
-                    self._offset = decimal(str(old_z)) - z
+                    self._offset = old_z - z
 
                 return
 
-            # self.axes.autoscale(False)
-
             if self.key == 'x':
                 x += self._offset
+                old_pos.x = x
             elif self.key == 'y':
                 y += self._offset
+                old_pos.y = y
             elif self.key == 'z':
                 z += self._offset
+                old_pos.z = z
 
-            for wire in self.wires:
-                xs, ys, zs = wire.get_data_3d()
-
-                if xs[0] == old_x and ys[0] == old_y and zs[0] == old_z:
-                    if self.key == 'x':
-                        xs[0] = float(x)
-                    elif self.key == 'y':
-                        ys[0] = float(y)
-                    elif self.key == 'z':
-                        zs[0] = float(z)
-
-                    wire.set_data_3d(xs, ys, zs)
-
-                elif xs[1] == old_x and ys[1] == old_y and zs[1] == old_z:
-                    if self.key == 'x':
-                        xs[1] = float(x)
-                    elif self.key == 'y':
-                        ys[1] = float(y)
-                    elif self.key == 'z':
-                        zs[1] = float(z)
-
-                    wire.set_data_3d(xs, ys, zs)
-
-            if self.key == 'x':
-                old_pos[0] = float(x)
-                self.selected_object._offsets3d[0][0] = float(x)  # NOQA
-            elif self.key == 'y':
-                old_pos[1] = float(y)
-                self.selected_object._offsets3d[1][0] = float(y)  # NOQA
-            elif self.key == 'z':
-                old_pos[2] = float(z)
-                self.selected_object._offsets3d[2][0] = float(z)  # NOQA
 
             self.axes.get_figure(root=True).canvas.draw_idle()
 
@@ -468,27 +389,31 @@ class Editor3D(wx.Panel):
             self._offset = None
 
         if event.button == 3 and not self.had_motion:
-            menu = wx.Menu()
 
-            wx.MenuItem()
+            if self.selected_object is not None:
+                menu = self.selected_object.actions_menu(self)
 
-            menu.Append(wx.ID_ANY, 'menu item 1')
-            menu.Append(wx.ID_ANY, 'menu item 2')
-            menu.Append(wx.ID_ANY, 'menu item 3')
-            menu.AppendSeparator()
-            menu.Append(wx.ID_ANY, 'menu item 4')
-            menu.Append(wx.ID_ANY, 'menu item 5')
-            menu.AppendSeparator()
+            else:
+                menu = wx.Menu()
+                wx.MenuItem()
 
-            sub_menu = wx.Menu()
-            sub_menu.Append(wx.ID_ANY, 'sub menu item 1')
-            sub_menu.Append(wx.ID_ANY, 'sub menu item 2')
-            sub_menu.Append(wx.ID_ANY, 'sub menu item 3')
-            sub_menu.AppendSeparator()
-            sub_menu.Append(wx.ID_ANY, 'sub menu item 4')
-            sub_menu.Append(wx.ID_ANY, 'sub menu item 5')
+                menu.Append(wx.ID_ANY, 'Add Connector')
+                menu.Append(wx.ID_ANY, '')
+                menu.Append(wx.ID_ANY, 'menu item 3')
+                menu.AppendSeparator()
+                menu.Append(wx.ID_ANY, 'menu item 4')
+                menu.Append(wx.ID_ANY, 'menu item 5')
+                menu.AppendSeparator()
 
-            menu.AppendSubMenu(sub_menu, 'menu item 6')
+                sub_menu = wx.Menu()
+                sub_menu.Append(wx.ID_ANY, 'sub menu item 1')
+                sub_menu.Append(wx.ID_ANY, 'sub menu item 2')
+                sub_menu.Append(wx.ID_ANY, 'sub menu item 3')
+                sub_menu.AppendSeparator()
+                sub_menu.Append(wx.ID_ANY, 'sub menu item 4')
+                sub_menu.Append(wx.ID_ANY, 'sub menu item 5')
+
+                menu.AppendSubMenu(sub_menu, 'menu item 6')
 
             x = event.x
             y = event.y
