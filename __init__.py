@@ -32,26 +32,31 @@ matplotlib.rcParams['ytick.major.width'] = 0.5
 matplotlib.rcParams['ytick.minor.width'] = 0.5
 matplotlib.rcParams['ytick.minor.width'] = 0.5
 
-
 matplotlib.use('WXAgg')
 
-from ..wrappers import art3d as _
+from ..wrappers.art3d import Path3DCollection  # NOQA
 
-from mpl_toolkits.mplot3d.art3d import Line3D, Path3DCollection
-from decimal import Decimal as decimal  # NOQA
-
+from mpl_toolkits.mplot3d import axes3d as _axes3d  # NOQA
 import matplotlib.pyplot  # NOQA
 import numpy as np  # NOQA
 
-from wx.lib.agw import aui
-from ..widgets import aui_toolbar
-from .. import image as _image
-
-from . import canvas as _canvas
+from wx.lib.agw import aui  # NOQA
+from ..widgets import aui_toolbar  # NOQA
+from .. import image as _image  # NOQA
+from . import canvas as _canvas  # NOQA
+from .inlays import axis_indicator  # NOQA
+from .. import config as _config  # NOQA
+from ..wrappers.wxkey_event import KeyEvent  # NOQA
+from ..wrappers.wxmouse_event import MouseEvent  # NOQA
+from .. import utils  # NOQA
 
 
 if TYPE_CHECKING:
     from .. import ui
+
+
+class Config(metaclass=_config.Config):
+    axis_indicator = [0.88, 0.02, 0.10, 0.10]
 
 
 class Editor3D(wx.Panel):
@@ -68,70 +73,26 @@ class Editor3D(wx.Panel):
     ID_CPA_LOCK = wx.NewIdRef()
 
     def __init__(self, parent):
-        self.key = None
-        self.selected_object = None
-        self.button_held = False
-        self.had_motion = False
-        self.object_tooltip = None
-        self._offset = None
-        self.data = None
         self.mode = self.ID_POINTER
 
         self.mainframe: "ui.MainFrame" = parent.GetParent()
         wx.Panel.__init__(self, parent, wx.ID_ANY, style=wx.BORDER_NONE)
 
-        v_sizer = wx.BoxSizer(wx.VERTICAL)
-        h_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.fig = matplotlib.pyplot.figure(figsize=(3.5, 3.5))
 
-        self.fig = matplotlib.pyplot.figure()
+        ax = self.axes = _axes3d.Axes3D(self.fig, [-0.80, -0.95, 2.8, 2.8])
 
-        ax = self.axes = self.fig.add_subplot(projection='3d')
-        ax.autoscale(True)
+        self.fig.add_axes(ax)
 
-        # Set the axis labels
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')
+        ax.set_xlim3d(-50, 50)
+        ax.set_ylim3d(-50, 50)
+        ax.set_zlim3d(-50, 50)
 
-        self.canvas = _canvas.Canvas(self, wx.ID_ANY, self.fig)
+        inlay = self.inlay = axis_indicator.AxisIndicator(self.fig, Config.axis_indicator)
+        self.canvas = _canvas.Canvas(self, wx.ID_ANY, self.fig, self.axes)
 
-        # MouseEvent
-        self.canvas.mpl_connect("button_press_event", self.on_press)
-        self.canvas.mpl_connect("motion_notify_event", self.on_motion)
-        self.canvas.mpl_connect("button_release_event", self.on_release)
-        self.canvas.mpl_connect("scroll_event", self.on_mouse_scroll)
-
-        # LocationEvent
-        self.canvas.mpl_connect("figure_enter_event", self.on_figure_enter)
-        self.canvas.mpl_connect("figure_leave_event", self.on_figure_leave)
-        self.canvas.mpl_connect("axes_enter_event", self.on_axes_enter)
-        self.canvas.mpl_connect("axes_leave_event", self.on_axes_leave)
-
-        # KeyEvent
-        self.canvas.mpl_connect("key_press_event", self.on_key_press)
-        self.canvas.mpl_connect("key_release_event", self.on_key_release)
-
-        # CloseEvent
-        self.canvas.mpl_connect("close_event", self.on_close)
-
-        # DrawEvent
-        self.canvas.mpl_connect("draw_event", self.on_draw)
-
-        # PickEvent
-        self.canvas.mpl_connect("pick_event", self.on_pick)
-
-        # ResizeEvent
-        self.canvas.mpl_connect("resize_event", self.on_resize)
-
-        # toolbar = NavigationToolbar2WxAgg(self.canvas)
-        # toolbar.Realize()
-
-        h_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
-        v_sizer.Add(h_sizer, 1, wx.EXPAND)
-        # v_sizer.Add(toolbar, 0, wx.LEFT | wx.EXPAND)
-
-        self.SetSizer(v_sizer)
-        # toolbar.update()
+        ax.shareview(inlay)
+        self.fig.add_axes(inlay)
 
         self.editor3d_toolbar = aui_toolbar.AuiToolBar(self.mainframe, style=aui.AUI_TB_GRIPPER | aui.AUI_TB_TEXT)
         self.editor3d_toolbar.SetToolBitmapSize((48, 48))
@@ -169,16 +130,6 @@ class Editor3D(wx.Panel):
             self.buttons.append(item)
             self.Bind(wx.EVT_MENU, self.on_tool, id=id)
 
-        #
-        # self.editor3d_toolbar.AddTool(ID_TRANSITION, 'Add Transition', transition.bitmap, transition.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
-        # self.editor3d_toolbar.AddTool(ID_CONNECTOR, 'Add Connector', connector.bitmap, connector.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
-        # self.editor3d_toolbar.AddTool(ID_TERMINAL, 'Add Terminal', terminal.bitmap, terminal.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
-        # self.editor3d_toolbar.AddTool(ID_SEAL, 'Add Seal', seal.bitmap, seal.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
-        # self.editor3d_toolbar.AddTool(ID_WIRE, 'Add Wire', wire.bitmap, wire.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
-        # self.editor3d_toolbar.AddTool(ID_SPLICE, 'Add Splice', splice.bitmap, splice.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
-        # self.editor3d_toolbar.AddTool(ID_BUNDLE_COVER, 'Add Bundle', bundle_cover.bitmap, bundle_cover.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
-        # self.editor3d_toolbar.AddTool(ID_TPA_LOCK, 'Add TPA', tpa_lock.bitmap, tpa_lock.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
-        # self.editor3d_toolbar.AddTool(ID_CPA_LOCK, 'Add CPA', cpa_lock.bitmap, tpa_lock.disabled_bitmap, wx.ITEM_RADIO, '', '', None)
         self.editor3d_toolbar.Realize()
         self.editor3d_toolbar_pane = (
             aui.AuiPaneInfo()
@@ -202,6 +153,23 @@ class Editor3D(wx.Panel):
         self.mainframe.manager.AddPane(self.editor3d_toolbar, self.editor3d_toolbar_pane)
         self.mainframe.manager.Update()
 
+        self.Bind(wx.EVT_SIZE, self.on_size)
+        self.Bind(wx.EVT_MOTION, self.on_motion)
+        self.Bind(wx.EVT_LEFT_DOWN, self.on_left_down)
+        self.Bind(wx.EVT_LEFT_UP, self.on_left_up)
+        self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_dclick)
+        self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_down)
+        self.Bind(wx.EVT_RIGHT_UP, self.on_right_up)
+        self.Bind(wx.EVT_RIGHT_DCLICK, self.on_right_dclick)
+        self.Bind(wx.EVT_KEY_DOWN, self.on_key_down)
+        self.Bind(wx.EVT_KEY_UP, self.on_key_up)
+
+        v_sizer = wx.BoxSizer(wx.VERTICAL)
+        h_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        h_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
+        v_sizer.Add(h_sizer, 1, wx.EXPAND)
+        self.SetSizer(v_sizer)
+
         def _do():
             self.buttons[0].SetState(aui.AUI_BUTTON_STATE_CHECKED)
 
@@ -212,219 +180,52 @@ class Editor3D(wx.Panel):
 
         wx.CallAfter(_do)
 
+    def on_size(self, evt):
+        w, h = evt.GetSize()
+        size_ = max(w, h)
+        axes_off_x = utils.remap(size_, 474, 2333, -1.1, -1.60)
+        axes_off_y = utils.remap(size_, 474, 2333, -1.1, -1.4)
+        axes_size = utils.remap(size_, 474, 2333, 3.2, 4.20)
+
+        self.axes.set_position([axes_off_x, axes_off_y, axes_size, axes_size])
+        self.fig.canvas.draw_idle()
+        evt.Skip()
+
     def on_tool(self, evt):
         self.mode = evt.GetId()
 
-    def on_close(self, evt):
-        pass
+    def on_motion(self, evt: MouseEvent):
+        evt.Skip()
 
-    def on_draw(self, evt):
-        pass
+    def on_left_down(self, evt: MouseEvent):
+        evt.Skip()
 
-    def on_key_press(self, evt):
-        key = evt.key
-        if isinstance(key, str):
-            self.key = key.lower()
+    def on_left_up(self, evt: MouseEvent):
+        evt.Skip()
 
-    def on_key_release(self, evt):
-        key = evt.key
-        if isinstance(key, str) and key.lower() == self.key:
-            self.key = None
+    def on_left_dclick(self, evt: MouseEvent):
+        evt.Skip()
 
-    def on_pick(self, evt):
-        if isinstance(evt.artist, Path3DCollection):
-            self.selected_object = evt.artist.get_py_data()
-            self.axes.button_pressed = None
+    def on_right_down(self, evt: MouseEvent):
+        evt.Skip()
 
-    def on_resize(self, evt):
-        pass
+    def on_right_up(self, evt: MouseEvent):
+        artist = evt.GetArtist()
+        x, y = evt.GetPosition()
 
-    def on_mouse_scroll(self, evt):
-        x, y = evt.xdata, evt.ydata
+        if artist is not None:
+            obj = artist.get_py_data()
+            obj.menu3d(self, x, y)
 
-        if x is None or evt.inaxes != self.axes:
-            return
+        evt.Skip()
 
-        if not hasattr(self.axes, '_sx') or not hasattr(self.axes, '_sy'):
-            self.axes._sx, self.axes._sy = x, y
+    def on_right_dclick(self, evt: MouseEvent):
+        evt.Skip()
 
-        h = self.axes._pseudo_h  # NOQA
+    def on_key_down(self, evt: KeyEvent):
+        evt.Skip()
 
-        scale = h / (h + (evt.step / 100))
-        self.axes._scale_axis_limits(scale, scale, scale)  # NOQA
-
-        self.axes.get_figure(root=True).canvas.draw_idle()
-
-    def on_figure_enter(self, evt):
-        pass
-
-    def on_figure_leave(self, evt):
-        pass
-
-    def on_axes_enter(self, evt):
-        pass
-
-    def on_axes_leave(self, evt):
-        pass
-
-    def on_press(self, event):
-        if event.button == 1:
-            # left button
-            if event.dblclick:
-                pass
-            elif self.selected_object is not None:
-                self.button_held = True
-                self.axes.button_pressed = None
-
-        elif event.button == 2:
-            # middle button
-            pass
-        elif event.button == 3:
-            # right button
-            # open context menu
-            self.had_motion = False
-
-        elif event.button == 8:
-            # forward
-            pass
-        elif event.button == 9:
-            # back
-            pass
-
-    def location_coords(self, xv, yv):
-        p1, pane_idx = self.axes._calc_coord(xv, yv, None)  # NOQA
-        xs = self.axes.format_xdata(p1[0])
-        ys = self.axes.format_ydata(p1[1])
-        zs = self.axes.format_zdata(p1[2])
-
-        def get_decimal(val):
-            if val.startswith('−'):
-                return decimal(str(-float(val[1:])))
-            else:
-                return decimal(str(float(val)))
-
-        return get_decimal(xs), get_decimal(ys), get_decimal(zs)
-
-    def on_motion(self, event):
-        if event.button == 3:
-            self.had_motion = True
-            # Start the pan event with pixel coordinates
-
-            x, y = event.xdata, event.ydata
-            # In case the mouse is out of bounds.
-            if x is None or event.inaxes != self:
-                return
-
-            self.axes.button_pressed = None
-
-            if not hasattr(self.axes, '_sx') or not hasattr(self.axes, '_sy'):
-                self.axes._sx, self.axes._sy = event.xdata, event.ydata
-
-            px, py = self.axes.transData.transform([self.axes._sx, self.axes._sy])  # NOQA
-            self.axes.start_pan(px, py, 2)
-            # pan view (takes pixel coordinate input)
-            self.axes.drag_pan(2, None, event.x, event.y)
-            self.axes.end_pan()
-
-            self.axes._sx, self.axes._sy = event.xdata, event.ydata
-            # Always request a draw update at the end of interaction
-            self.axes.get_figure(root=True).canvas.draw_idle()
-
-        elif self.button_held and self.selected_object is not None:
-            if self.key not in ('x', 'y', 'z'):
-                return
-
-            try:
-                x, y, z = self.location_coords(event.xdata, event.ydata)
-            except TypeError:
-                return
-
-            old_pos = self.selected_object.center
-
-            old_x, old_y, old_z = tuple(old_pos)
-
-            if self._offset is None:
-                if self.key == 'x':
-                    self._offset = old_x - x
-                elif self.key == 'y':
-                    self._offset = old_y - y
-                else:  # 'z'
-                    self._offset = old_z - z
-
-                return
-
-            if self.key == 'x':
-                x += self._offset
-                old_pos.x = x
-            elif self.key == 'y':
-                y += self._offset
-                old_pos.y = y
-            elif self.key == 'z':
-                z += self._offset
-                old_pos.z = z
+    def on_key_up(self, evt: KeyEvent):
+        evt.Skip()
 
 
-            self.axes.get_figure(root=True).canvas.draw_idle()
-
-            height = self.canvas.GetSize()[1]
-            x = round(x, 2)
-            y = round(y, 2)
-            z = round(z, 2)
-            label = f'x: {x} y: {y} z: {z}'
-
-            size = self.canvas.GetTextExtent(label)
-            if self.object_tooltip is None:
-                self.object_tooltip = wx.StaticText(self.canvas, wx.ID_ANY,
-                                                    label=label, size=size,
-                                                    pos=(0, height - size[1]))
-            else:
-                self.object_tooltip.SetLabel(label)
-                self.object_tooltip.SetPosition((0, height - size[1]))
-                self.object_tooltip.SetSize(size)
-
-    def on_release(self, event):
-        if self.object_tooltip is not None:
-            self.object_tooltip.Destroy()
-            self.object_tooltip = None
-            self._offset = None
-
-        if event.button == 3 and not self.had_motion:
-
-            if self.selected_object is not None:
-                menu = self.selected_object.actions_menu(self)
-
-            else:
-                menu = wx.Menu()
-                wx.MenuItem()
-
-                menu.Append(wx.ID_ANY, 'Add Connector')
-                menu.Append(wx.ID_ANY, '')
-                menu.Append(wx.ID_ANY, 'menu item 3')
-                menu.AppendSeparator()
-                menu.Append(wx.ID_ANY, 'menu item 4')
-                menu.Append(wx.ID_ANY, 'menu item 5')
-                menu.AppendSeparator()
-
-                sub_menu = wx.Menu()
-                sub_menu.Append(wx.ID_ANY, 'sub menu item 1')
-                sub_menu.Append(wx.ID_ANY, 'sub menu item 2')
-                sub_menu.Append(wx.ID_ANY, 'sub menu item 3')
-                sub_menu.AppendSeparator()
-                sub_menu.Append(wx.ID_ANY, 'sub menu item 4')
-                sub_menu.Append(wx.ID_ANY, 'sub menu item 5')
-
-                menu.AppendSubMenu(sub_menu, 'menu item 6')
-
-            x = event.x
-            y = event.y
-
-            height = self.canvas.GetSize()[1]
-
-            y = abs(y - height)
-
-            self.canvas.PopupMenu(menu, x, y)
-        else:
-            self.selected_object = None
-            self.button_held = False
-
-        self.had_motion = False
