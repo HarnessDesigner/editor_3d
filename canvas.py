@@ -1,25 +1,24 @@
 import wx
-from matplotlib.backends.backend_wxagg import (  # NOQA
-    FigureCanvasWxAgg as FigureCanvas
-)
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 
-from matplotlib.backend_bases import (
-    ResizeEvent as _ResizeEvent,
-    MouseEvent as _MouseEvent,
-    KeyEvent as _KeyEvent,
-    MouseButton as _MouseButton
-)
+from matplotlib.backend_bases import (ResizeEvent as _ResizeEvent,
+                                      MouseEvent as _MouseEvent,
+                                      KeyEvent as _KeyEvent,
+                                      MouseButton as _MouseButton)
 
-from ..wrappers.wxreal_point import RealPoint
 from ..wrappers.wxkey_event import KeyEvent
 from ..wrappers.wxmouse_event import MouseEvent
+from ..wrappers.wxartist_event import (ArtistEvent,
+                                       wxEVT_COMMAND_ARTIST_SET_SELECTED,
+                                       wxEVT_COMMAND_ARTIST_UNSET_SELECTED)
+from ..wrappers.decimal import Decimal as _decimal
+from ..geometry import point as _point
 
 
 class Canvas(FigureCanvas):
 
-    def __init__(self, editor, id_, fig, axes):
-        super().__init__(editor, id_, fig)
-
+    def __init__(self, editor, parent, id_, fig, axes):
+        super().__init__(parent, id_, fig)
         self.axes = axes
         self.editor = editor
 
@@ -30,18 +29,39 @@ class Canvas(FigureCanvas):
         self._raw_key_flags = 0
         self._unicode_key = ''
         self._selected_artist = None
+        self._tmp_selected_artist = None
         self._inlay_selected = None
         self._inlay_coords = None
         self._inlay_move = None
         self._inlay_corners = None
         self._inlay_corner_grab = 0
         self._scrap_first_move = True
+        self._is_drag_event = False
+        self.renderer = None
+
+        self.mpl_connect("pick_event", self._on_pick)
 
     # bypass erasing the background when the plot is redrawn.
     # This helps to eliminate the flicker that is seen when a redraw occurs.
     # the second piece needed to eliminate the flicker is seen below
     def _on_erase_background(self, _):
         pass
+    #
+    # def draw(self, drawDC=None):
+    #     """
+    #     Render the figure using RendererWx instance renderer, or using a
+    #     previously defined renderer if none is specified.
+    #     """
+    #
+    #     # no need to recreate the renderer over and over
+    #     # again when forcing a redraw
+    #
+    #     if self.renderer is None:
+    #         self.renderer = RendererWx(self.bitmap, self.figure.dpi)
+    #
+    #     self.figure.draw(self.renderer)
+    #     self._isDrawn = True
+    #     self.gui_repaint(drawDC=drawDC)
 
     # override the _on_paint method in the canvas
     # this is done so double buffer is used which eliminates the flicker
@@ -67,6 +87,32 @@ class Canvas(FigureCanvas):
             del gcdc
 
         drawDC.Destroy()
+    #
+    # def gui_repaint(self, drawDC=None):
+    #     # The "if self" check avoids a "wrapped C/C++ object has been deleted"
+    #     # RuntimeError if doing things after window is closed.
+    #     if not (self and self.IsShownOnScreen()):
+    #         return
+    #
+    #     if not drawDC:  # not called from OnPaint use a ClientDC
+    #         drawDC = wx.ClientDC(self)
+    #     # For 'WX' backend on Windows, the bitmap cannot be in use by another
+    #     # DC (see GraphicsContextWx._cache).
+    #     bmp = (self.bitmap.ConvertToImage().ConvertToBitmap()
+    #            if wx.Platform == '__WXMSW__' and isinstance(self.figure.canvas.get_renderer(), RendererWx)
+    #            else self.bitmap)
+    #     drawDC.DrawBitmap(bmp, 0, 0)
+    #     if self._rubberband_rect is not None:
+    #         # Some versions of wx+python don't support numpy.float64 here.
+    #         x0, y0, x1, y1 = map(round, self._rubberband_rect)
+    #         rect = [(x0, y0, x1, y0), (x1, y0, x1, y1),
+    #                 (x0, y0, x0, y1), (x0, y1, x1, y1)]
+    #         drawDC.DrawLineList(rect, self._rubberband_pen_white)
+    #         drawDC.DrawLineList(rect, self._rubberband_pen_black)
+    #
+    # def draw_idle(self):
+    #     self._isDrawn = False  # Force redraw
+    #     self.Refresh(eraseBackground=False)
 
     # override the _on_size method in the canvas
     def _on_size(self, event):
@@ -106,8 +152,27 @@ class Canvas(FigureCanvas):
         self.Refresh(eraseBackground=False)
         _ResizeEvent("resize_event", self)._process()  # NOQA
         self.draw_idle()
-    
-    def _world_coords(self, x, y) -> None | RealPoint:
+
+    def _mpl_coords(self, pos=None):
+        """
+        Convert a wx position, defaulting to the current cursor position, to
+        Matplotlib coordinates.
+        """
+        if pos is None:
+            pos = wx.GetMouseState()
+            x, y = self.ScreenToClient(pos.X, pos.Y)
+        else:
+            x, y = pos
+        # flip y so y=0 is bottom of canvas
+        if not wx.Platform == '__WXMSW__':
+            scale = self.GetDPIScaleFactor()
+            return x*scale, self.figure.bbox.height - y*scale
+        else:
+            return x, self.figure.bbox.height - y
+
+    def world_coords(self, point=None) -> _point.Point:
+        x, y = self._mpl_coords(point)
+
         xv, yv = self._get_inaxes(x, y)
 
         if None in (xv, yv):
@@ -121,13 +186,19 @@ class Canvas(FigureCanvas):
         ys = self.axes.format_ydata(p1[1])
         zs = self.axes.format_zdata(p1[2])
 
-        def get_float(val):
+        def get_decimal(val):
+            # this is not a minus sign tho it should be.
             if val.startswith('−'):
-                return -float(val[1:])
+                val = val[1:].replace('−', '-')
+                return _decimal(-float(val))
+            # These are actually different.
+            elif '−' in val:
+                val = val.replace('−', '-')
+                return _decimal(float(val))
             else:
-                return float(val)
+                return _decimal(float(val))
 
-        return RealPoint(get_float(xs), get_float(ys), z=get_float(zs))
+        return _point.Point(get_decimal(xs), get_decimal(ys), z=get_decimal(zs))
 
     def _get_inaxes(self, x, y):
         inaxes = self.inaxes((x, y))
@@ -141,25 +212,59 @@ class Canvas(FigureCanvas):
         return None, None
 
     def _on_pick(self, evt):
-        self._selected_artist = evt.artist
+        artist = evt.artist.get_py_data()
+
+        x, y = self._mpl_coords()
+        m_event = _MouseEvent("button_press_event", self, x, y, _MouseButton.LEFT,
+                              modifiers=[], guiEvent=None)
+
+        if self._selected_artist == artist:
+            self._tmp_selected_artist = self._selected_artist
+            return
+
+        if self._selected_artist is not None:
+            e = ArtistEvent(wxEVT_COMMAND_ARTIST_UNSET_SELECTED, self._selected_artist.wxid)
+            e.SetEventObject(self)
+            e.SetArtist(self._selected_artist)
+            e.SetPosition3D(self.world_coords())
+            e.SetMatplotlibEvent(m_event)
+            self._selected_artist = None
+            self.GetParent().ProcessEvent(e)
+
+        self._tmp_selected_artist = artist
+        e = ArtistEvent(wxEVT_COMMAND_ARTIST_SET_SELECTED, artist.wxid)
+        e.SetEventObject(self)
+        e.SetArtist(artist)
+        e.SetPosition3D(self.world_coords())
+        e.SetMatplotlibEvent(m_event)
+        m_state = wx.GetMouseState()
+        e.SetPosition(self.ScreenToClient(m_state.GetPosition()))
+        self.GetParent().ProcessEvent(e)
 
     def _on_key_down(self, event: wx.KeyEvent):
         event.StopPropagation()
 
-        x, y = self._mpl_coords()
-
         self._key_code = event.GetKeyCode()
         self._raw_key_code = event.GetRawKeyCode()
         self._raw_key_flags = event.GetRawKeyFlags()
-        self._unicode_key = event.GetUnicodeKey()
 
         e = KeyEvent(wx.wxEVT_KEY_DOWN)
         e.SetShiftDown(event.ShiftDown())
         e.SetAltDown(event.AltDown())
         e.SetControlDown(event.ControlDown())
         e.SetKeyCode(event.GetKeyCode())
-        e.SetUnicodeKey(event.GetUnicodeKey())
-        e.SetPosition3D(self._world_coords(x, y))
+
+        if event.GetUnicodeKey():
+            self._unicode_key = chr(event.GetUnicodeKey())
+
+            if not event.ShiftDown():
+                self._unicode_key = self._unicode_key.lower()
+
+            e.SetUnicodeKey(self._unicode_key)
+        else:
+            self._unicode_key = None
+
+        e.SetPosition3D(self.world_coords(event.GetPosition()))
         e.SetPosition(event.GetPosition())
         e.SetEventObject(event.GetEventObject())
         e.SetMetaDown(event.MetaDown())
@@ -168,34 +273,37 @@ class Canvas(FigureCanvas):
         e.SetRawKeyFlags(event.GetRawKeyFlags())
         e.SetRefData(event.GetRefData())
         e.SetArtist(self._selected_artist)
-
-        if self._selected_artist is None:
-            e.SetId(event.GetId())
-        else:
-            e.SetId(self._selected_artist.get_py_data().wxid)
-
+        e.SetId(event.GetId())
+        m_event = _KeyEvent("key_press_event", self, self._get_key(event),
+                            *self._mpl_coords(event.GetPosition()), guiEvent=event)
+        e.SetMatplotlibEvent(m_event)
         self.GetParent().ProcessEvent(e)
 
-        _KeyEvent("key_press_event", self, self._get_key(event),  # NOQA
-                 *self._mpl_coords(), guiEvent=event)._process()
+        m_event._process()  # NOQA
 
     def _on_key_up(self, event):
         event.StopPropagation()
 
-        x, y = self._mpl_coords()
-
-        self._key_code = event.GetKeyCode()
-        self._raw_key_code = event.GetRawKeyCode()
-        self._raw_key_flags = event.GetRawKeyFlags()
-        self._unicode_key = event.GetUnicodeKey()
+        self._key_code = None
+        self._raw_key_code = None
+        self._raw_key_flags = None
+        self._unicode_key = None
 
         e = KeyEvent(wx.wxEVT_KEY_UP)
         e.SetShiftDown(event.ShiftDown())
         e.SetAltDown(event.AltDown())
         e.SetControlDown(event.ControlDown())
         e.SetKeyCode(event.GetKeyCode())
-        e.SetUnicodeKey(event.GetUnicodeKey())
-        e.SetPosition3D(self._world_coords(x, y))
+
+        if event.GetUnicodeKey():
+            unicode_key = chr(event.GetUnicodeKey())
+
+            if not event.ShiftDown():
+                unicode_key = unicode_key.lower()
+
+            e.SetUnicodeKey(unicode_key)
+
+        e.SetPosition3D(self.world_coords(event.GetPosition()))
         e.SetPosition(event.GetPosition())
         e.SetEventObject(event.GetEventObject())
         e.SetMetaDown(event.MetaDown())
@@ -204,22 +312,21 @@ class Canvas(FigureCanvas):
         e.SetRawKeyFlags(event.GetRawKeyFlags())
         e.SetRefData(event.GetRefData())
         e.SetArtist(self._selected_artist)
+        e.SetId(event.GetId())
 
-        if self._selected_artist is None:
-            e.SetId(event.GetId())
-        else:
-            e.SetId(self._selected_artist.get_py_data().wxid)
-
+        m_event = _KeyEvent("key_release_event", self, self._get_key(event),
+                            *self._mpl_coords(event.GetPosition()), guiEvent=event)
+        e.SetMatplotlibEvent(m_event)
         self.GetParent().ProcessEvent(e)
 
-        _KeyEvent("key_release_event", self, self._get_key(event),  # NOQA
-                 *self._mpl_coords(), guiEvent=event)._process()
+        m_event._process()  # NOQA
 
     def _on_mouse_button(self, event: wx.MouseEvent):
         event.StopPropagation()
+        if self.HasCapture():
+            self.ReleaseMouse()
 
-        self._set_capture(event.ButtonDown() or event.ButtonDClick())
-        x, y = self._mpl_coords(event)
+        x, y = self._mpl_coords(event.GetPosition())
         button_map = {
             wx.MOUSE_BTN_LEFT: _MouseButton.LEFT,
             wx.MOUSE_BTN_MIDDLE: _MouseButton.MIDDLE,
@@ -228,11 +335,53 @@ class Canvas(FigureCanvas):
             wx.MOUSE_BTN_AUX2: _MouseButton.FORWARD,
         }
         button = event.GetButton()
-        button = button_map.get(button, button)
         modifiers = self._mpl_modifiers(event)
 
+        if event.ButtonDClick():
+            e_text = 'button_press_event'
+        elif event.ButtonDown():
+            e_text = 'button_press_event'
+        else:
+            e_text = 'button_release_event'
+
+        if event.ButtonDClick():
+            if button == wx.MOUSE_BTN_LEFT:
+                m_event = _MouseEvent(e_text, self, x, y,
+                                      button_map.get(button, button),
+                                      modifiers=modifiers, guiEvent=event)
+            else:
+                m_event = _MouseEvent(e_text, self, x, y,
+                                      button_map.get(button, button),
+                                      dblclick=True, modifiers=modifiers, guiEvent=event)
+
+        else:
+            m_event = _MouseEvent(e_text, self, x, y,
+                                  button_map.get(button, button),
+                                  modifiers=modifiers, guiEvent=event)
+
         if button == wx.MOUSE_BTN_LEFT:
-            if event.ButtonDown():
+            if event.ButtonDClick():
+                m_event._process()  # NOQA
+
+                if self._tmp_selected_artist:
+                    if self._tmp_selected_artist == self._selected_artist:
+                        # do double click event for artist
+                        pass
+                    else:
+                        self._selected_artist = self._tmp_selected_artist
+
+                    self._tmp_selected_artist = None
+                elif self._selected_artist is not None:
+                    e = ArtistEvent(wxEVT_COMMAND_ARTIST_UNSET_SELECTED,
+                                    self._selected_artist.wxid)
+                    e.SetEventObject(self)
+                    e.SetArtist(self._selected_artist)
+                    e.SetPosition3D(self.world_coords())
+                    self._selected_artist = None
+                    self.GetParent().ProcessEvent(e)
+
+                e = MouseEvent(wx.wxEVT_LEFT_DCLICK)
+            elif event.ButtonDown():
                 mx, my = event.GetPosition()
                 if self._inlay_corners is None:
                     bbox = self.editor.inlay.get_position()
@@ -279,11 +428,14 @@ class Canvas(FigureCanvas):
                             self._inlay_corners = inlay_corners
                             self._scrap_first_move = True
                             self._inlay_move = [mx, my]
+                            self.CaptureMouse()
                             return
 
                     if x1 <= mx <= x2 and y1 <= my <= y2:
                         self._inlay_corner_grab = 5
                         self._inlay_move = [mx, my]
+                        self.CaptureMouse()
+                        return
                     elif self._inlay_corners is not None:
                         self._inlay_move = None
                         self._inlay_selected = None
@@ -291,18 +443,35 @@ class Canvas(FigureCanvas):
                         self._inlay_corner_grab = 0
                         self.axes.get_figure(root=True).canvas.draw_idle()
 
+                m_event._process()  # NOQA
+
+                if self._tmp_selected_artist:
+                    self._selected_artist = self._tmp_selected_artist
+                    self._tmp_selected_artist = None
+                    self._is_drag_event = True
+                    self.CaptureMouse()
+
+                elif self._selected_artist is not None:
+                    e = ArtistEvent(wxEVT_COMMAND_ARTIST_UNSET_SELECTED,
+                                    self._selected_artist.wxid)
+                    e.SetEventObject(self)
+                    e.SetArtist(self._selected_artist)
+                    e.SetPosition3D(self.world_coords())
+                    self._selected_artist = None
+                    self.GetParent().ProcessEvent(e)
+
                 e = MouseEvent(wx.wxEVT_LEFT_DOWN)
-            elif event.ButtonDClick():
-                e = MouseEvent(wx.wxEVT_LEFT_DCLICK)
             elif event.ButtonUp():
                 if self._inlay_move is not None:
                     self._inlay_move = None
                     self._inlay_corner_grab = 0
                     return
 
+                self._is_drag_event = False
                 e = MouseEvent(wx.wxEVT_LEFT_UP)
             else:
                 return
+
         elif button == wx.MOUSE_BTN_MIDDLE:
             if event.ButtonDown():
                 e = MouseEvent(wx.wxEVT_MIDDLE_DOWN)
@@ -353,7 +522,7 @@ class Canvas(FigureCanvas):
         e.SetLinesPerAction(event.GetLinesPerAction())
         e.SetMetaDown(event.MetaDown())
         e.SetMiddleDown(event.MiddleDown())
-        e.SetPosition3D(self._world_coords(x, y))
+        e.SetPosition3D(self.world_coords(event.GetPosition()))
         e.SetPosition(event.GetPosition())
         e.SetRawControlDown(event.RawControlDown())
         e.SetRefData(event.GetRefData())
@@ -364,42 +533,37 @@ class Canvas(FigureCanvas):
         e.SetWheelDelta(event.GetWheelDelta())
         e.SetWheelRotation(event.GetWheelRotation())
         e.SetArtist(self._selected_artist)
+        e.SetMatplotlibEvent(m_event)
 
         if self._selected_artist is None:
             e.SetId(event.GetId())
         else:
-            e.SetId(self._selected_artist.get_py_data().wxid)
+            e.SetId(self._selected_artist.wxid)
 
-        if self._key_code is not None:
+        if self._key_code:
             e.SetKeyCode(self._key_code)
 
-        if self._raw_key_code is not None:
+        if self._raw_key_code:
             e.SetRawKeyCode(self._raw_key_code)
 
-        if self._raw_key_flags is not None:
+        if self._raw_key_flags:
             e.SetRawKeyFlags(self._raw_key_flags)
 
-        if self._unicode_key is not None:
+        if self._unicode_key:
             e.SetUnicodeKey(self._unicode_key)
 
         self.GetParent().ProcessEvent(e)
-        if button == wx.MOUSE_BTN_LEFT and event.ButtonUp():
-            self._selected_artist = None
 
-        if event.ButtonDown():
-            _MouseEvent("button_press_event", self, x, y, button,  # NOQA
-                       modifiers=modifiers, guiEvent=event)._process()
-        elif event.ButtonDClick():
-            _MouseEvent("button_press_event", self, x, y, button,  # NOQA
-                       dblclick=True, modifiers=modifiers, guiEvent=event)._process()
-        elif event.ButtonUp():
-            _MouseEvent("button_release_event", self, x, y, button,  # NOQA
-                       modifiers=modifiers, guiEvent=event)._process()
+        if (
+            not (event.ButtonDClick() and button == wx.MOUSE_BTN_LEFT) and
+            not (event.ButtonDown() and button == wx.MOUSE_BTN_LEFT)
+        ):
+            m_event._process()  # NOQA
 
     def _on_mouse_wheel(self, event):
         event.StopPropagation()
 
-        x, y = self._mpl_coords(event)
+        x, y = self._mpl_coords(event.GetPosition())
         # Convert delta/rotation/rate into a floating point step size
         step = event.LinesPerAction * event.WheelRotation / event.WheelDelta
         # Mac gives two events for every wheel event; skip every second one.
@@ -424,7 +588,7 @@ class Canvas(FigureCanvas):
         e.SetLinesPerAction(event.GetLinesPerAction())
         e.SetMetaDown(event.MetaDown())
         e.SetMiddleDown(event.MiddleDown())
-        e.SetPosition3D(self._world_coords(x, y))
+        e.SetPosition3D(self.world_coords(event.GetPosition()))
         e.SetPosition(event.GetPosition())
         e.SetRawControlDown(event.RawControlDown())
         e.SetRefData(event.GetRefData())
@@ -439,25 +603,31 @@ class Canvas(FigureCanvas):
         if self._selected_artist is None:
             e.SetId(event.GetId())
         else:
-            e.SetId(self._selected_artist.get_py_data().wxid)
+            e.SetId(self._selected_artist.wxid)
 
-        if self._key_code is not None:
+        if self._key_code:
             e.SetKeyCode(self._key_code)
 
-        if self._raw_key_code is not None:
+        if self._raw_key_code:
             e.SetRawKeyCode(self._raw_key_code)
 
-        if self._raw_key_flags is not None:
+        if self._raw_key_flags:
             e.SetRawKeyFlags(self._raw_key_flags)
 
-        if self._unicode_key is not None:
+        if self._unicode_key:
             e.SetUnicodeKey(self._unicode_key)
+
+        m_event = _MouseEvent("scroll_event", self, x, y, step=step,  # NOQA
+                              modifiers=self._mpl_modifiers(event),
+                              guiEvent=event)
+
+        e.SetMatplotlibEvent(m_event)
 
         if (
             not event.ControlDown() and not event.RawControlDown() and
             not event.AltDown() and not event.MetaDown()
         ):
-            h = self.axes._pseudo_h  # NOQA
+            h = min(self.axes._pseudo_h, self.axes._pseudo_w)  # NOQA
 
             scale = h / (h + (step / 100))
             self.axes._scale_axis_limits(scale, scale, scale)  # NOQA
@@ -468,14 +638,23 @@ class Canvas(FigureCanvas):
         else:
             self.GetParent().ProcessEvent(e)
 
-            _MouseEvent("scroll_event", self, x, y, step=step,  # NOQA
-                       modifiers=self._mpl_modifiers(event),
-                       guiEvent=event)._process()
+            m_event._process()  # NOQA
+
+    def _wx_coords(self, x, y):
+        pw, ph = self.GetParent().GetSize()
+        w, h = self.GetSize()
+
+        offset_x = (pw - w) // 2
+        offset_y = (ph - h) // 2
+
+        return x + offset_x, y + offset_y
 
     def _on_motion(self, event):
         event.StopPropagation()
 
-        if self._inlay_selected:
+        if self._inlay_selected and event.LeftIsDown():
+            self._is_drag_event = False
+
             if self._inlay_move is not None:
                 last_x, last_y = self._inlay_move
                 new_x, new_y = event.GetPosition()
@@ -545,56 +724,15 @@ class Canvas(FigureCanvas):
                 self.axes.get_figure(root=True).canvas.draw_idle()
             return
 
-        x, y = self._mpl_coords(event)
-
-        e = MouseEvent(wx.wxEVT_MOTION)
-        e.SetAltDown(event.AltDown())
-        e.SetAux1Down(event.Aux1Down())
-        e.SetAux2Down(event.Aux2Down())
-        e.SetColumnsPerAction(event.GetColumnsPerAction())
-        e.SetControlDown(event.ControlDown())
-        e.SetEventObject(event.GetEventObject())
-        e.SetLeftDown(event.LeftDown())
-        e.SetLinesPerAction(event.GetLinesPerAction())
-        e.SetMetaDown(event.MetaDown())
-        e.SetMiddleDown(event.MiddleDown())
-        e.SetPosition3D(self._world_coords(x, y))
-        e.SetPosition(event.GetPosition())
-        e.SetRawControlDown(event.RawControlDown())
-        e.SetRefData(event.GetRefData())
-        e.SetRightDown(event.RightDown())
-        e.SetShiftDown(event.ShiftDown())
-        e.SetTimestamp(event.GetTimestamp())
-        e.SetWheelAxis(event.GetWheelAxis())
-        e.SetWheelDelta(event.GetWheelDelta())
-        e.SetWheelRotation(event.GetWheelRotation())
-        e.SetArtist(self._selected_artist)
-
-        if self._selected_artist is None:
-            e.SetId(event.GetId())
-        else:
-            e.SetId(self._selected_artist.get_py_data().wxid)
-
-        if self._key_code is not None:
-            e.SetKeyCode(self._key_code)
-
-        if self._raw_key_code is not None:
-            e.SetRawKeyCode(self._raw_key_code)
-
-        if self._raw_key_flags is not None:
-            e.SetRawKeyFlags(self._raw_key_flags)
-
-        if self._unicode_key is not None:
-            e.SetUnicodeKey(self._unicode_key)
-
         if (
-            event.RightDown() and
+            event.RightIsDown() and
             not event.ControlDown() and not event.RawControlDown() and
             not event.AltDown() and not event.MetaDown() and
-            not event.Aux1Down() and not event.Aux2Down() and
-            not event.LeftDown() and not event.MiddleDown()
+            not event.Aux1IsDown() and not event.Aux2IsDown() and
+            not event.LeftIsDown() and not event.MiddleIsDown()
         ):
             self.axes.button_pressed = None
+            x, y = self._mpl_coords()
 
             px, py = self.axes.transData.transform([self.axes._sx, self.axes._sy])  # NOQA
             self.axes.start_pan(px, py, 2)
@@ -605,11 +743,88 @@ class Canvas(FigureCanvas):
             self.axes._sx, self.axes._sy = self._get_inaxes(x, y)
             # Always request a draw update at the end of interaction
             self.axes.get_figure(root=True).canvas.draw_idle()
+            self._is_drag_event = False
 
-            self.GetParent().ProcessEvent(e)
+        e = MouseEvent(wx.wxEVT_MOTION)
+        e.SetAltDown(event.AltDown())
+        e.SetAux1Down(event.Aux1IsDown())
+        e.SetAux2Down(event.Aux2IsDown())
+        e.SetColumnsPerAction(event.GetColumnsPerAction())
+        e.SetControlDown(event.ControlDown())
+        e.SetEventObject(event.GetEventObject())
+        e.SetLeftDown(event.LeftIsDown())
+        e.SetLinesPerAction(event.GetLinesPerAction())
+        e.SetMetaDown(event.MetaDown())
+        e.SetMiddleDown(event.MiddleIsDown())
+        e.SetPosition3D(self.world_coords(event.GetPosition()))
+        e.SetPosition(event.GetPosition())
+        e.SetRawControlDown(event.RawControlDown())
+        e.SetRefData(event.GetRefData())
+        e.SetRightDown(event.RightIsDown())
+        e.SetShiftDown(event.ShiftDown())
+        e.SetTimestamp(event.GetTimestamp())
+        e.SetWheelAxis(event.GetWheelAxis())
+        e.SetWheelDelta(event.GetWheelDelta())
+        e.SetWheelRotation(event.GetWheelRotation())
+
+        if self._selected_artist is not None:
+            e.SetArtist(self._selected_artist)
+
+        if self._key_code:
+            e.SetKeyCode(self._key_code)
+
+        if self._raw_key_code:
+            e.SetRawKeyCode(self._raw_key_code)
+
+        if self._raw_key_flags:
+            e.SetRawKeyFlags(self._raw_key_flags)
+
+        if self._unicode_key:
+            e.SetUnicodeKey(self._unicode_key)
+
+        e.SetId(self.GetId())
+
+        m_event = _MouseEvent("motion_notify_event", self, *self._mpl_coords(event.GetPosition()),
+                              buttons=self._mpl_buttons(), modifiers=self._mpl_modifiers(event),
+                              guiEvent=event)
+
+        e.SetMatplotlibEvent(m_event)
+
+        if self.HasCapture() and event.LeftIsDown():
+            if self._selected_artist is not None:
+                self._selected_artist.on_motion(e)
+                return
+            else:
+                self._is_drag_event = True
+
         else:
-            self.GetParent().ProcessEvent(e)
+            self._is_drag_event = False
 
-            _MouseEvent("motion_notify_event", self, *self._mpl_coords(event),  # NOQA
-                       buttons=self._mpl_buttons(), modifiers=self._mpl_modifiers(event),
-                       guiEvent=event)._process()
+        m_event._process()  # NOQA
+
+        self.GetParent().ProcessEvent(e)
+
+    def _on_enter(self, event):
+        """Mouse has entered the window."""
+        event.Skip()
+        # LocationEvent("figure_enter_event", self,
+        #               *self._mpl_coords(event.GetPosition()),
+        #               modifiers=self._mpl_modifiers(),
+        #               guiEvent=event)._process()
+
+    def _on_leave(self, event):
+        """Mouse has left the window."""
+        event.Skip()
+        # LocationEvent("figure_leave_event", self,
+        #               *self._mpl_coords(event.GetPosition()),
+        #               modifiers=self._mpl_modifiers(),
+        #               guiEvent=event)._process()
+
+    def _set_capture(self, capture=True):
+        pass
+
+    def _on_capture_lost(self, event):
+        if self.HasCapture():
+            self.ReleaseMouse()
+
+        event.Skip()
