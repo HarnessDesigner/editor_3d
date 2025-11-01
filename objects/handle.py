@@ -54,5 +54,5 @@ class BundleHandle(_sphere.Sphere):
             self._bundles.remove(bundle)
 
 
-from . import wire as _wire
-from . import bundle as _bundle
+from . import wire as _wire  # NOQA
+from . import bundle as _bundle  # NOQA
