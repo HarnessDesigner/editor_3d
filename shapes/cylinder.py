@@ -4,12 +4,12 @@ import matplotlib.cbook
 import numpy as np
 from mpl_toolkits.mplot3d import axes3d, art3d
 
-from ..geometry import point as _point
-from ..geometry import rotation as _rotation
-from ..geometry import line as _line
-from ..wrappers import art3d
-from ..wrappers.decimal import Decimal as _decimal
-from ..wrappers import color as _color
+from ...geometry import point as _point
+from ...geometry import rotation as _rotation
+from ...geometry import line as _line
+from ...wrappers import art3d
+from ...wrappers.decimal import Decimal as _decimal
+from ...wrappers import color as _color
 
 
 class Cylinder:

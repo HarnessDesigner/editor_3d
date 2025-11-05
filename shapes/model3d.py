@@ -1,68 +1,31 @@
-
 import matplotlib
 import itertools
 import matplotlib.cbook
 import numpy as np
+import io
+from stl import mesh
 from mpl_toolkits.mplot3d import axes3d, art3d
 
 from ...geometry import point as _point
 from ...wrappers.decimal import Decimal as _decimal
 from ...wrappers import color as _color
 from ...geometry import rotation as _rotation
-from ...geometry.constants import ONE_65, NINE_0, ZERO_1666, ONEHUN_0
 
 
-# How this works is the hemisphere is created at point 0, 0, 0 and when applying
-# rotation it needs to be done 2 times. The first time is to adjust a transition angle
-# as a whole This simply sets the center point location the origin for this rotation
-# is going to be the center point of the transition. The second time the rotation
-# gets fed in is what sets the hemisphere rotation relative to it's senter point.
-# this one the center point of the hemisphere is what gets passed in for the origin
-# setting the angle of the hemisphere like this allows for positioning of the hemisphere
-# to meet with the body cylinder and the branch cylinders proeprly.
-# I still have to monkey around with doing angle calculations for branges that are
-# not 90° to the transition center point. It should be as simple as angle + 90 for the
-# calculation because we are always building the transition at 0, 0, 0 and then setting
-# any transition rotation and then moving the transition into place. This all occurs in
-# numpy arrays and it's not rendered for each step. The reason why it is important to
-# utilize these hemispheres is because it reduces the poly count that matplotlib needs
-# to render this allows me to bump up the number of polygons on other objects to give
-# a smoother appearance.
+class Model3D:
 
-
-class Hemisphere:
-
-    def __init__(self, center: _point.Point, diameter: _decimal,
-                 color: _color.Color, hole_diameter: _decimal | None):
-
+    def __init__(self, center: _point.Point, model_data: bytes, model_type: str, color: _color.Color):
         center.Bind(self._update_artist)
         self._center = center
-        self._diameter = diameter
         self._color = color
         self._saved_color = self._color
         self.artist = None
         self._verts = None
-
+        self._model_data = io.BytesIO(model_data)
+        self._model_type = model_type
         self._x_angle = _decimal(0.0)
         self._y_angle = _decimal(0.0)
         self._z_angle = _decimal(0.0)
-
-        self._sections = int((ONE_65 / (NINE_0 / (diameter ** ZERO_1666))) * ONEHUN_0)
-
-        self._hole_diameter = hole_diameter
-        self._hole_center = None
-        self._hc = None
-
-    @property
-    def hole_diameter(self) -> _decimal | None:
-        return self._hole_diameter
-
-    @hole_diameter.setter
-    def hole_diameter(self, value: _decimal | None):
-        self._hole_diameter = value
-        self._verts = None
-
-        self._update_artist()
 
     def set_selected_color(self, flag):
         if flag:
@@ -93,18 +56,6 @@ class Hemisphere:
 
         self._center.Unbind(self._update_artist)
         self._center = value
-        self._update_artist()
-
-    @property
-    def diameter(self) -> _decimal:
-        return self._diameter
-
-    @diameter.setter
-    def diameter(self, value: _decimal):
-        self._diameter = value
-        self._sections = int((ONE_65 / (NINE_0 / (value ** ZERO_1666))) * ONEHUN_0)
-
-        self._verts = None
         self._update_artist()
 
     @property
@@ -153,26 +104,18 @@ class Hemisphere:
 
     def _get_verts(self) -> tuple[np.array, np.array, np.array]:
         if self._verts is None:
-            radius = float(self._diameter / _decimal(2.0))
+            if self._model_type == 'stl':
+                self._model_data.seek(0)
+                stl = mesh.Mesh.from_file(self._model_data, calculate_normals=False)
+                points = stl.points
+                self._verts = [points[:, 0:: 3], points[:, 1:: 3], points[:, 2:: 3]]
 
-            u = np.linspace(0, 2 * np.pi, int(self._sections / 1.5))
-            v = np.linspace(0, self._line_space, self._sections // 3)
-            X = radius * np.outer(np.cos(u), np.sin(v))
-            Y = radius * np.outer(np.sin(u), np.sin(v))
-            Z = radius * np.outer(np.ones(np.size(u)), np.cos(v))
-
-            if self._hole_diameter:
-                hole_dia = float(self._hole_diameter / _decimal(2.0) / _decimal(1.15))
-
-                mask = np.sqrt(X ** 2 + Y ** 2) >= hole_dia
-                X = np.where(mask, X, np.nan)
-                Y = np.where(mask, Y, np.nan)
-                Z = np.where(mask, Z, np.nan)
-
-                z_max = np.nanmax(Z.flatten())
-                self._hc = _point.Point(_decimal(0.0), _decimal(0.0), _decimal(z_max))
-
-            self._verts = [X, Y, Z]
+            elif self._model_type == '3mf':
+                self._model_data.seek(0)
+                for mf in mesh.Mesh.from_3mf_file(self._model_data, calculate_normals=False):
+                    points = mf.points
+                    self._verts = [points[:, 0:: 3], points[:, 1:: 3], points[:, 2:: 3]]
+                    break
 
         x, y, z = self._verts
 
@@ -181,39 +124,17 @@ class Hemisphere:
             R = _rotation.Rotation(x_angle, y_angle, z_angle)
 
             X, Y, Z = R(self._center, x, y, z)
-
-            if self._hc is None:
-                hole_center = self._center
-            else:
-                local_points = R(self._center, self._hc)
-                hole_center = _point.Point(*[_decimal(float(item)) for item in local_points])
         else:
-            if self._hc is None:
-                hole_center = self._center
-            else:
-                hole_center = self._hc
-
             X, Y, Z = x, y, z
-
-        if self._hole_center is None:
-            self._hole_center = hole_center
-        elif self._hole_center != hole_center:
-            hc = self._hole_center
-            diff = hole_center - hc
-            hc += diff
 
         return X, Y, Z
 
-    @property
-    def hole_center(self) -> _point.Point:
-        if self._hole_center is None:
-            _ = self._get_verts()
-
-        return self._hole_center
-
-    def _update_artist(self, *_) -> None:
+    def _update_artist(self, p=None) -> None:
         if not self.is_added:
             return
+
+        if p is not None:
+            self._verts = None
 
         x, y, z = self._get_verts()
 
