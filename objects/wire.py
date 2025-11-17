@@ -1,112 +1,173 @@
-from mpl_toolkits.mplot3d import axes3d
+from typing import TYPE_CHECKING
 
-from ...shapes import cylinder as _cylinder
+import build123d
+from OCP.gp import gp_Trsf, gp_Quaternion
+
 from ...geometry import point as _point
-
+from ...geometry import line as _line
 from ...wrappers.decimal import Decimal as _decimal
-from ...wrappers import color as _color
+from . import Base3D as _Base3D
 
 
-from . import handle as _handle
-from . import layout as _layout
+if TYPE_CHECKING:
+    from .. import Editor3D as _Editor3D
+    from ...database.project_db import pjt_wire as _pjt_wire
+    
+    
+def _build_model(p1: _point.Point, p2: _point.Point, diameter: _decimal, has_stripe: bool):
+    line = _line.Line(p1, p2)
+    wire_length = line.length()
+    wire_radius = diameter / _decimal(2.0)
+
+    # Create the wire
+    model = build123d.Cylinder(float(wire_radius), float(wire_length), align=build123d.Align.NONE)
+
+    angle = line.get_angle(p1)
+
+    transformation = gp_Trsf()
+    quaternion = gp_Quaternion(*angle.quat)
+    transformation.SetRotation(quaternion)
+
+    if has_stripe:
+        # Extract the axis of rotation from the wire to create the stripe
+        wire_axis = model.faces().filter_by(build123d.GeomType.CYLINDER)[0].axis_of_rotation
+
+        # Take 1mm of the circular arc as the stripe and make it 2D
+        stripe_arc = build123d.Face(
+            (model.edges().filter_by(build123d.GeomType.CIRCLE).sort_by(lambda e: e.distance_to(wire_axis.position))[0])
+            .trim_to_length(0, 1 * build123d.MM).offset_2d(0.01 * build123d.MM, side=build123d.Side.RIGHT))
+
+        # Define the twist path to follow the wire
+        twist = build123d.Helix(
+            pitch=float(wire_length / _decimal(2.0)),
+            height=float(wire_length),
+            radius=float(wire_radius),
+            center=wire_axis.position,
+            direction=wire_axis.direction,
+        )
+
+        # Sweep the arc to create the stripe
+        stripe = build123d.sweep(
+            stripe_arc,
+            build123d.Line(wire_axis.position, float(wire_length * _decimal(wire_axis.direction))),
+            binormal=twist
+        )
+        stripe = stripe._apply_transform(transformation)  # NOQA
+        stripe.move(build123d.Location(p1.as_float))
+    else:
+        stripe = None
+
+    model = model._apply_transform(transformation)  # NOQA
+    model.move(build123d.Location(p1.as_float))
+    bb = model.bounding_box()
+
+    corner1 = _point.Point(*[_decimal(item) for item in bb.min])
+    corner2 = _point.Point(*[_decimal(item) for item in bb.max])
+
+    return model, stripe, (corner1, corner2)
 
 
-class Wire(_cylinder.Cylinder):
+class Wire(_Base3D):
 
-    def __init__(self, p1: _point.Point, p2: _point.Point, diameter: _decimal,
-                 primary_color: _color.Color,
-                 stripe_color: _color.Color | None):
+    def __init__(self, editor3d: "_Editor3D", wire_db: "_pjt_wire.PJTWire"):
+        super().__init__(editor3d)
+        self._db_obj = wire_db
+        self._part = wire_db.part
 
-        if stripe_color is None:
-            stripe_color = primary_color
+        self._p1 = wire_db.start_point3d.point
+        self._p2 = wire_db.stop_point3d.point
+        self._is_visible = self._db_obj.is_visible
+        self._primary_color = self._part.color
+        self._ui_primary_color = self._primary_color.ui
 
-        self._primary_color = primary_color
-        self._stripe_color = stripe_color
+        # TODO: Add stripe_color to global database
+        self._stripe_color = self._part.stripe_color
+        if self._stripe_color is None:
+            self._ui_stripe_color = None
+        else:
+            self._ui_stripe_color = self._stripe_color.ui
 
-        self._handle1 = _handle.WireHandle(p1, diameter, primary_color)
-        self._handle2 = _handle.WireHandle(p2, diameter, primary_color)
+        self._dia = self._part.od_mm
 
-        super().__init__(p1, p2, diameter, primary_color, stripe_color)
+        if self._is_visible:
+            self._model, self._stripe, self._hit_test_rect = _build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
 
-        self._handle1.add_wire(self)
-        self._handle2.add_wire(self)
+            p1, p2 = self._hit_test_rect
+            p1 += self._p1
+            p2 += self._p1
+        else:
+            self._model = None
+            self._stripe = None
+            self._hit_test_rect = None
+
+        self._triangles = None
+        self._stripe_triangles = None
+        self._normals = None
+        self._stripe_normals = None
+        self._triangle_count = 0
+        self._stripe_triangle_count = 0
+
+        self._p1.Bind(self.recalculate)
+        self._p2.Bind(self.recalculate)
 
     @property
-    def p1(self) -> _point.Point:
-        return self._p1
+    def is_visible(self) -> bool:
+        return self._is_visible
 
-    @p1.setter
-    def p1(self, value: _point.Point):
-        self._p1.UnBind(self._update_artist)
-        self._p1 = value
+    @is_visible.setter
+    def is_visible(self, value: bool) -> None:
+        self._is_visible = value
+        self._db_obj.is_visible = value
 
-        self._handle1.center = value
-        self._update_artist()
+        if not value:
+            self._model = None
+            self._stripe = None
+            self._hit_test_rect = None
+            self._triangles = None
+            self._stripe_triangles = None
+            self._normals = None
+            self._stripe_normals = None
+            self._triangle_count = 0
+            self._stripe_triangle_count = 0
 
-    @property
-    def p2(self) -> _point.Point:
-        return self._p2
+    def recalculate(self, *_):
+        if not self._is_visible:
+            return
 
-    @p2.setter
-    def p2(self, value: _point.Point):
-        self._p2.UnBind(self._update_artist)
-        self._p2 = value
+        self._model, self._stripe, self._hit_test_rect = _build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
 
-        self._handle2.center = value
-        self._update_artist()
+        p1, p2 = self._hit_test_rect
+        p1 += self._p1
+        p2 += self._p1
 
-    @property
-    def handle1(self) -> _handle.WireHandle | _layout.WireLayout:
-        return self._handle1
+        self._triangles = None
 
-    @handle1.setter
-    def handle1(self, value: _handle.WireHandle | _layout.WireLayout):
-        self._handle1.remove_wire(self)
-        self._p1.UnBind(self._update_artist)
-        value.center.Bind(self._update_artist)
-        self._p1 = value.center
-        self._p1.Bind(self._update_artist)
-        self._handle1 = value
+    def hit_test(self, point: _point.Point) -> bool:
+        if self._hit_test_rect is None:
+            return False
 
-    @property
-    def handle2(self) -> _handle.WireHandle | _layout.WireLayout:
-        return self._handle2
+        p1, p2 = self._hit_test_rect
+        return p1 <= point <= p2
 
-    @handle2.setter
-    def handle2(self, value: _handle.WireHandle | _layout.WireLayout):
-        self._handle2.remove_wire(self)
-        self._p2.UnBind(self._update_artist)
-        value.center.Bind(self._update_artist)
-        self._p2 = value.center
-        self._p2.Bind(self._update_artist)
-        self._handle2 = value
+    def draw(self, renderer):
+        if not self._is_visible:
+            return
 
-    def add_to_plot(self, axes: axes3d.Axes3D) -> None:
-        super().add_to_plot(axes)
+        if self._is_visible and self._model is None:
+            self._model, self._stripe, self._hit_test_rect = _build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
+            p1, p2 = self._hit_test_rect
+            p1 += self._p1
+            p2 += self._p1
 
-        if self._handle1 is not None:
-            self._handle1.add_to_plot(axes)
-        if self._handle2 is not None:
-            self._handle2.add_to_plot(axes)
+            self._triangles = None
 
-    def add_layout(self, point: _point.Point) -> "Wire":
-        p2 = self._p2
-        p2.UnBind(self._update_artist)
+        if self._triangles is None:
+            self._normals, self._triangles, self._triangle_count = self._get_triangles(self._model)
 
-        point.Bind(self._update_artist)
-        self._p2 = point
+            if self._stripe is not None:
+                self._stripe_normals, self._stripe_triangles, self._stripe_triangle_count = self._get_triangles(self._stripe)
 
-        layout = _layout.WireLayout(point, self._diameter, self._primary_color)
-        layout.add_wire(self)
+        renderer.draw_triangles(self._normals, self._triangles, self._triangle_count, self._ui_primary_color.rgb_scalar)
 
-        wire = Wire(point, p2, self.diameter, self._primary_color, self._stripe_color)
-
-        layout.add_wire(wire)
-
-        wire.handle1.remove()
-        wire.handle1 = layout
-
-        self._handle2.remove()
-        self._handle2 = layout
-
-        return wire
+        if self._stripe is not None:
+            renderer.draw_triangles(self._stripe_normals, self._stripe_triangles, self._stripe_triangle_count, self._ui_stripe_color.rgb_scalar)

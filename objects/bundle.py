@@ -1,121 +1,100 @@
-from mpl_toolkits.mplot3d import axes3d
 
-from ...shapes import cylinder as _cylinder
+from typing import TYPE_CHECKING
+
+import build123d
+from OCP.gp import gp_Trsf, gp_Quaternion
+
 from ...geometry import point as _point
-
+from ...geometry import line as _line
 from ...wrappers.decimal import Decimal as _decimal
-from ...wrappers import color as _color
+from . import Base3D as _Base3D
 
 
-from . import handle as _handle
-from . import layout as _layout
-from . import wire as _wire
+if TYPE_CHECKING:
+    from .. import Editor3D as _Editor3D
+    from ...database.project_db import pjt_bundle as _pjt_bundle
 
 
-class Bundle(_cylinder.Cylinder):
+def _build_model(p1: _point.Point, p2: _point.Point, diameter: _decimal):
+    line = _line.Line(p1, p2)
+    wire_length = line.length()
+    wire_radius = diameter / _decimal(2.0)
 
-    def __init__(self, p1: _point.Point, p2: _point.Point, diameter: _decimal, color: _color.Color):
+    # Create the wire
+    model = build123d.Cylinder(float(wire_radius), float(wire_length), align=build123d.Align.NONE)
 
-        self._handle1 = _handle.BundleHandle(p1, diameter)
-        self._handle2 = _handle.BundleHandle(p2, diameter)
+    angle = line.get_angle(p1)
 
-        super().__init__(p1, p2, diameter, color, color)
+    transformation = gp_Trsf()
+    quaternion = gp_Quaternion(*angle.quat)
+    transformation.SetRotation(quaternion)
 
-        self._handle1.add_bundle(self)
-        self._handle2.add_bundle(self)
-        self._wires = []
+    model = model._apply_transform(transformation)  # NOQA
 
-    @property
-    def p1(self) -> _point.Point:
-        return self._p1
+    model.move(build123d.Location(p1.as_float))
 
-    @p1.setter
-    def p1(self, value: _point.Point):
-        self._p1.UnBind(self._update_artist)
-        self._p1 = value
+    bb = model.bounding_box()
 
-        self._handle1.center = value
-        self._update_artist()
+    corner1 = _point.Point(*[_decimal(item) for item in bb.min])
+    corner2 = _point.Point(*[_decimal(item) for item in bb.max])
 
-    @property
-    def p2(self) -> _point.Point:
-        return self._p2
+    return model, (corner1, corner2)
 
-    @p2.setter
-    def p2(self, value: _point.Point):
-        self._p2.UnBind(self._update_artist)
-        self._p2 = value
 
-        self._handle2.center = value
-        self._update_artist()
+class Bundle(_Base3D):
 
-    @property
-    def handle1(self) -> _handle.BundleHandle | _layout.BundleLayout:
-        return self._handle1
+    def __init__(self, editor3d: "_Editor3D", bundle_db: "_pjt_bundle.PJTBundle"):
+        super().__init__(editor3d)
+        self._db_obj = bundle_db
+        self._part = bundle_db.part
 
-    @handle1.setter
-    def handle1(self, value: _handle.BundleHandle | _layout.BundleLayout):
-        self._handle1.remove_bundle(self)
-        self._p1.UnBind(self._update_artist)
-        value.center.Bind(self._update_artist)
-        self._p1 = value.center
-        self._p1.Bind(self._update_artist)
-        self._handle1 = value
+        self._p1 = bundle_db.start_point.point
+        self._p2 = bundle_db.stop_point.point
+        self._color = self._part.color
+        self._ui_color = self._color.ui
 
-    @property
-    def handle2(self) -> _handle.BundleHandle | _layout.BundleLayout:
-        return self._handle2
+        # TODO: Add diameter to the bundle table
+        self._dia = bundle_db.diameter
 
-    @handle2.setter
-    def handle2(self, value: _handle.BundleHandle | _layout.BundleLayout):
-        self._handle2.remove_bundle(self)
-        self._p2.UnBind(self._update_artist)
-        value.center.Bind(self._update_artist)
-        self._p2 = value.center
-        self._p2.Bind(self._update_artist)
-        self._handle2 = value
+        self._model, self._hit_test_rect = _build_model(self._p1, self._p2, self._dia)
 
-    def add_to_plot(self, axes: axes3d.Axes3D) -> None:
-        super().add_to_plot(axes)
+        self._triangles = None
+        self._normals = None
+        self._triangle_count = 0
 
-        if self._handle1 is not None:
-            self._handle1.add_to_plot(axes)
-        if self._handle2 is not None:
-            self._handle2.add_to_plot(axes)
+        p1, p2 = self._hit_test_rect
+        p1 += self._p1
+        p2 += self._p1
 
-    def add_wire(self, wire: _wire.Wire):
-
-        if wire not in self._wires:
-            self._wires.append(wire)
-            wire.hide()
-
-    def remove_wire(self, wire: _wire.Wire):
-        if wire in self._wires:
-            self._wires.remove(wire)
-            wire.show()
+        self._p1.Bind(self.recalculate)
+        self._p2.Bind(self.recalculate)
 
     @property
-    def wires(self):
-        return self._wires[:]
+    def diameter(self) -> _decimal:
+        return self._dia
 
-    def add_layout(self, point: _point.Point) -> "Bundle":
-        p2 = self._p2
-        p2.UnBind(self._update_artist)
+    @diameter.setter
+    def diameter(self, value: _decimal):
+        self._dia = value
+        self._db_obj.diameter = value
+        self.recalculate()
 
-        point.Bind(self._update_artist)
-        self._p2 = point
+    def recalculate(self, *_):
+        self._model, self._hit_test_rect = _build_model(self._p1, self._p2, self._dia)
 
-        layout = _layout.BundleLayout(point, self._diameter)
-        layout.add_bundle(self)
+        p1, p2 = self._hit_test_rect
+        p1 += self._p1
+        p2 += self._p1
 
-        bundle = Bundle(point, p2, self.diameter, self._primary_color)
+        self._triangles = None
 
-        layout.add_bundle(bundle)
+    def hit_test(self, point: _point.Point) -> bool:
+        p1, p2 = self._hit_test_rect
+        return p1 <= point <= p2
 
-        bundle.handle1.remove()
-        bundle.handle1 = layout
+    def draw(self, renderer):
+        if self._triangles is None:
+            self._normals, self._triangles, self._triangle_count = self._get_triangles(self._model)
 
-        self._handle2.remove()
-        self._handle2 = layout
+        renderer.draw_triangles(self._normals, self._triangles, self._triangle_count, self._ui_color.rgb_scalar)
 
-        return bundle
