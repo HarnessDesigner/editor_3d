@@ -25,6 +25,10 @@ def set_renderer_active(name: str):
 
     _active = _registered[name]
 
+    if name == 'GLRenderer':
+        from .. import canvases
+        canvases.set_canvas_active('GLCanvas')
+
 
 class RendererMeta(type):
 
@@ -131,5 +135,11 @@ class RendererBase(metaclass=RendererMeta):
 
     def get_scale(self) -> tuple[float, float, float]:
         return self._scale_x, self._scale_y, self._scale_z
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 

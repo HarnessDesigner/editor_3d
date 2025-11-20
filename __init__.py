@@ -1,52 +1,18 @@
 from typing import TYPE_CHECKING
+
 import wx
-
-from . import monkey_patch
-
-# Press and hold `x`, `y` or `z` and then click on one of the points in the plot
-# and drag the point along the axis noted by the key that is being held down.
-#
-# Left click and drag rotates the plot.
-# Right click and drag pans the plot.
-# Mouse wheel zooms the plot.
-#
-# Code was added to remove the flicking that was seen when the plot is redrawn.
-
-import matplotlib
-
-matplotlib.rcParams[f'axes3d.xaxis.panecolor'] = (0.0, 0.0, 0.0, 0.0)
-matplotlib.rcParams[f'axes3d.yaxis.panecolor'] = (0.0, 0.0, 0.0, 0.0)
-matplotlib.rcParams[f'axes3d.yaxis.panecolor'] = (0.0, 0.0, 0.0, 0.0)
-matplotlib.rcParams['grid.color'] = (0.5, 0.5, 0.5, 0.5)
-matplotlib.rcParams['grid.linewidth'] = 0.5
-matplotlib.rcParams['grid.linestyle'] = ':'
-matplotlib.rcParams['axes.linewidth'] = 0.5
-matplotlib.rcParams['axes.edgecolor'] = (0.45, 0.45, 0.45, 0.55)
-
-matplotlib.rcParams['xtick.major.width'] = 0.5
-matplotlib.rcParams['ytick.major.width'] = 0.5
-
-matplotlib.rcParams['ytick.minor.width'] = 0.5
-matplotlib.rcParams['ytick.minor.width'] = 0.5
-
-matplotlib.use('WXAgg')
-
-from ..wrappers.art3d import Path3DCollection  # NOQA
-
-from mpl_toolkits.mplot3d import axes3d as _axes3d  # NOQA
-import matplotlib.pyplot  # NOQA
-from mpl_toolkits.mplot3d import axes3d  # NOQA
 import numpy as np  # NOQA
-
 from wx.lib.agw import aui  # NOQA
 from ..widgets import aui_toolbar  # NOQA
+
 from .. import image as _image  # NOQA
 from . import canvas as _canvas  # NOQA
-from .inlays import axis_indicator  # NOQA
 from .. import config as _config  # NOQA
 from ..wrappers.wxkey_event import KeyEvent  # NOQA
 from ..wrappers.wxmouse_event import MouseEvent  # NOQA
 from .. import utils  # NOQA
+from . import canvases as _canvases
+from . import renderers as _renderers
 
 
 if TYPE_CHECKING:
@@ -79,25 +45,11 @@ class Editor3D(wx.Panel):
         v_sizer = wx.BoxSizer(wx.VERTICAL)
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.fig = matplotlib.pyplot.figure(figsize=(3.5, 3.5))
-        ax = self.axes = axes3d.Axes3D(self.fig, [-0.80, -0.95, 2.8, 2.8], box_aspect=(1, 1, 1))
-
-        self.fig.add_axes(ax)
-        # ax.autoscale(True)
-
-        ax.set_xlim(-50, 50)
-        ax.set_ylim(-50, 50)
-        ax.set_zlim(-50, 50)
-
-        # get_tightbbox
-        ax.set_adjustable('datalim')
-        ax.set_aspect('equal', 'box')
+        self._renderer = _renderers.get_active_renderer_cls()()
+        self.canvas = _canvases.get_active_canvas_cls()()
 
         self.canvas = _canvas.Canvas(self.mainframe, self, wx.ID_ANY, self.fig, self.axes)
 
-        inlay = self.inlay = axis_indicator.AxisIndicator(self.fig, [0.88, 0.02, 0.10, 0.10])
-        ax.shareview(inlay)
-        self.fig.add_axes(inlay)
 
         hsizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
         v_sizer.Add(hsizer, 1, wx.EXPAND)
@@ -193,18 +145,6 @@ class Editor3D(wx.Panel):
             self.buttons[0].SetState(aui.AUI_BUTTON_STATE_CHECKED)
 
         wx.CallAfter(_do)
-
-    def _on_panel_size(self, evt):
-        w, h = evt.GetSize()
-        self.canvas.SetSize((w, h))
-        size_ = max(w, h)
-        axes_off_x = utils.remap(size_, 474, 2333, -1.1, -1.60)
-        axes_off_y = utils.remap(size_, 474, 2333, -1.1, -1.4)
-        axes_size = utils.remap(size_, 474, 2333, 3.2, 4.20)
-        self.axes.set_position([axes_off_x, axes_off_y, axes_size, axes_size])
-        self.fig.canvas.draw_idle()
-
-        evt.Skip()
 
     def SetSelected(self, obj, flag):
         if not flag and self._selected == obj:

@@ -8,8 +8,32 @@ _registered = {}
 _active = None
 
 
-def get_active_canvas():
+def get_active_canvas_cls():
     return _active
+
+
+def get_active_canvas():
+    return _active.__name__
+
+
+def get_canvas() -> list[str]:
+    return list(_registered.keys())
+
+
+def set_canvas_active(name: str):
+    global _active
+    if name not in _registered:
+        raise NameError(name)
+
+    from .. import renderers
+
+    if name == 'GLCanvas':
+        if renderers.get_active_renderer() != 'GLRenderer':
+            renderers.set_renderer_active('GLRenderer')
+    elif renderers.get_active_renderer() == 'GLRenderer':
+        raise RuntimeError('sanity check')
+
+    _active = _registered[name]
 
 
 class CanvasMeta(type):
@@ -21,8 +45,9 @@ class CanvasMeta(type):
 
 class CanvasBase(metaclass=CanvasMeta):
 
-    def __init__(self, editor3d: "_Editor3D"):
+    def __init__(self, editor3d: "_Editor3D", renderer):
         self.editor3d = editor3d
+        self.renderer = renderer
 
     @classmethod
     def make_active(cls):

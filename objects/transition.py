@@ -8,6 +8,7 @@ from ...geometry import point as _point
 from ...wrappers.decimal import Decimal as _decimal
 from ...wrappers import color as _color
 from ...geometry import angle as _angle
+from ... import gl_materials as _gl_materials
 from . import Base3D as _Base3D
 
 if TYPE_CHECKING:
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from ...database.project_db import pjt_transition as _pjt_transition
 
 
-def _build_model(center: _point.Point, b_data: "_transition.Transition", points: list[_point.Point], sizes: list[_decimal]):
+def build_model(center: _point.Point, b_data: "_transition.Transition", points: list[_point.Point], sizes: list[_decimal]):
     model = None
 
     hit_test_rects = []
@@ -153,11 +154,12 @@ class Transition(_Base3D):
         for bp in branch_points:
             bp.add_object(self)
 
-        self._model, self._hit_test_points = _build_model(self._center, self._part, branch_points, branch_diams)
+        self._model, self._hit_test_points = build_model(self._center, self._part, branch_points, branch_diams)
         self._branch_points = branch_points
         self._branch_diams = branch_diams
         self._ui_color = self._color.ui
         self._ui_color.Bind(self._update)
+        self._material = _gl_materials.Rubber(self._ui_color.rgba_scalar)
         self._triangles = None
         self._normals = None
         self._triangle_count = 0
@@ -193,10 +195,14 @@ class Transition(_Base3D):
         self._branch_diams[index] = dia
         setattr(self._db_obj, f'branch{index + 1}dia', dia)
 
-        model, hit_test_points = _build_model(self._center, self._part, self._branch_points, self._branch_diams)
+        model, hit_test_points = build_model(self._center, self._part, self._branch_points, self._branch_diams)
         self._hit_test_points = hit_test_points
         self._model = model
         self._triangles = None
+
+    def _update_color(self, *_):
+        self._material = _gl_materials.Rubber(self._ui_color.rgba_scalar)
+        self.editor3d.canvas.Refresh(False)
 
     @property
     def color(self) -> _color.Color:

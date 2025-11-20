@@ -5,6 +5,7 @@ import numpy as np
 
 from . import RendererBase as _RendererBase
 from ...geometry import point as _point
+from ... import gl_materials as _gl_materials
 
 
 class GLRenderer(_RendererBase):
@@ -75,11 +76,36 @@ class GLRenderer(_RendererBase):
     def get_pan(self) -> tuple[float, float, float]:
         return tuple(self._total_pan)
 
-    def draw_trinagles(self, normals, triangles, triangle_count, color):
-        glColor3f(*color)
-        glVertexPointer(3, GL_DOUBLE, 0, triangles)
-        glNormalPointer(GL_DOUBLE, 0, normals)
-        glDrawArrays(GL_TRIANGLES, 0, triangle_count)
+    def draw(self, *objs):
+        if objs:
+            # Clear color and depth buffers.
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+            glPushMatrix()
+
+            glEnableClientState(GL_VERTEX_ARRAY)
+            glEnableClientState(GL_NORMAL_ARRAY)
+
+            for obj in objs:
+                obj.draw(self)
+
+            glDisableClientState(GL_VERTEX_ARRAY)
+            glDisableClientState(GL_NORMAL_ARRAY)
+            glPopMatrix()
+
+    @staticmethod
+    def draw_trinagles(normals: np.ndarray | None, triangles: np.ndarray | None,
+                       triangle_count: int, color: tuple[float, float, float, float],
+                       material: _gl_materials.GLMaterial | None):
+
+        if triangle_count != 0:
+            glColor4f(*color)
+            if material is not None:
+                material.set()
+
+            glVertexPointer(3, GL_DOUBLE, 0, triangles)
+            glNormalPointer(GL_DOUBLE, 0, normals)
+            glDrawArrays(GL_TRIANGLES, 0, triangle_count)
 
     def __enter__(self):
         glLoadIdentity()
@@ -104,24 +130,7 @@ class GLRenderer(_RendererBase):
         glMultMatrixf(self.viewMatrix)
 
         glScalef(self._scale_x, self._scale_y, self._scale_z)
-
-        # Clear color and depth buffers.
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-
-        glPushMatrix()
-        # set the scale, "zooming"
-        glEnableClientState(GL_VERTEX_ARRAY)
-        glEnableClientState(GL_NORMAL_ARRAY)
         return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        glDisableClientState(GL_VERTEX_ARRAY)
-        glDisableClientState(GL_NORMAL_ARRAY)
-        glPopMatrix()
-
-
-
-
 
 
 GLRenderer.set_active()

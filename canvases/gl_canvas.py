@@ -24,8 +24,9 @@ class GLCanvasMeta(type(glcanvas.GLCanvas), CanvasMeta):
 
 
 class GLCanvas(glcanvas.GLCanvas, CanvasBase, metaclass=GLCanvasMeta):
-    def __init__(self, parent):
-        CanvasBase.__init__(self, parent)
+
+    def __init__(self, parent, renderer):
+        CanvasBase.__init__(self, parent, renderer)
         glcanvas.GLCanvas.__init__(self, parent, wx.ID_ANY)
         self.update_objects = True
         self.init = False
@@ -99,11 +100,14 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase, metaclass=GLCanvasMeta):
             self.renderer.init()
             self.init = True
 
-        if self.update_objects:
-            self.renderer.draw(self.editor3d.objects)
-        else:
-            self.renderer.draw()
-            self.update_objects = True
+        with self.renderer:
+            if self.update_objects:
+                self.renderer.draw(self.editor3d.objects)
+            else:
+                self.renderer.draw()
+                self.update_objects = True
+
+            self.draw_grid(50, 50, 150)
 
         self.SwapBuffers()
 
