@@ -13,6 +13,7 @@ from ..wrappers.wxmouse_event import MouseEvent  # NOQA
 from .. import utils  # NOQA
 from . import canvases as _canvases
 from . import renderers as _renderers
+from . import part_3d_preview as _part_3d_preview
 
 
 if TYPE_CHECKING:
@@ -21,6 +22,17 @@ if TYPE_CHECKING:
 
 class Config(metaclass=_config.Config):
     axis_indicator = [0.88, 0.02, 0.10, 0.10]
+
+
+
+
+
+class PreviewPane(wx.Panel):
+
+    def __init__(self, parent, global_db):
+        wx.Panel.__init__(self, parent, wx.ID_ANY, style=wx.BORDER_NONE)
+        self.preview_panel = _part_3d_preview.Preview3D(self)
+        self.part_selector =
 
 
 class Editor3D(wx.Panel):
@@ -46,10 +58,7 @@ class Editor3D(wx.Panel):
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
 
         self._renderer = _renderers.get_active_renderer_cls()()
-        self.canvas = _canvases.get_active_canvas_cls()()
-
-        self.canvas = _canvas.Canvas(self.mainframe, self, wx.ID_ANY, self.fig, self.axes)
-
+        self.canvas = _canvases.get_active_canvas_cls()(self)
 
         hsizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
         v_sizer.Add(hsizer, 1, wx.EXPAND)
@@ -111,6 +120,10 @@ class Editor3D(wx.Panel):
                                                  aui.ITEM_RADIO)
             self.buttons.append(item)
             self.Bind(wx.EVT_MENU, self.on_tool, id=id)
+
+
+        self.preview_pane = PreviewPane(self.mainframe)
+
 
         self.editor3d_toolbar.Realize()
         self.editor3d_toolbar_pane = (
@@ -209,3 +222,4 @@ class Editor3D(wx.Panel):
 
     def on_tool(self, evt):
         self.mode = evt.GetId()
+
