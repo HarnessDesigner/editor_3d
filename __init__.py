@@ -1,16 +1,16 @@
 from typing import TYPE_CHECKING
 
 import wx
-import numpy as np  # NOQA
-from wx.lib.agw import aui  # NOQA
-from ..widgets import aui_toolbar  # NOQA
+import numpy as np
+from wx.lib.agw import aui
+from ..widgets import aui_toolbar
 
-from .. import image as _image  # NOQA
-from . import canvas as _canvas  # NOQA
-from .. import config as _config  # NOQA
-from ..wrappers.wxkey_event import KeyEvent  # NOQA
-from ..wrappers.wxmouse_event import MouseEvent  # NOQA
-from .. import utils  # NOQA
+from .. import image as _image
+from . import canvas as _canvas
+from .. import config as _config
+from ..wrappers.wxkey_event import KeyEvent
+from ..wrappers.wxmouse_event import MouseEvent
+from .. import utils
 from . import canvases as _canvases
 from . import renderers as _renderers
 from . import part_3d_preview as _part_3d_preview
@@ -18,21 +18,7 @@ from . import part_3d_preview as _part_3d_preview
 
 if TYPE_CHECKING:
     from .. import ui
-
-
-class Config(metaclass=_config.Config):
-    axis_indicator = [0.88, 0.02, 0.10, 0.10]
-
-
-
-
-
-class PreviewPane(wx.Panel):
-
-    def __init__(self, parent, global_db):
-        wx.Panel.__init__(self, parent, wx.ID_ANY, style=wx.BORDER_NONE)
-        self.preview_panel = _part_3d_preview.Preview3D(self)
-        self.part_selector =
+    from ..database.global_db import TableBase
 
 
 class Editor3D(wx.Panel):
@@ -52,6 +38,7 @@ class Editor3D(wx.Panel):
         self.mode = self.ID_POINTER
 
         self.mainframe: "ui.MainFrame" = parent.GetParent()
+        self.global_db = self.mainframe.global_db
         wx.Panel.__init__(self, parent, wx.ID_ANY, style=wx.BORDER_NONE)
 
         v_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -65,17 +52,17 @@ class Editor3D(wx.Panel):
 
         self.SetSizer(v_sizer)
 
-        self.Bind(wx.EVT_SIZE, self._on_panel_size)
-        self.Bind(wx.EVT_MOTION, self._on_motion)
-        self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
-        self.Bind(wx.EVT_LEFT_UP, self._on_left_up)
-        # self.Bind(wx.EVT_LEFT_DCLICK, self._on_left_dclick)
-        self.Bind(wx.EVT_RIGHT_DOWN, self._on_right_down)
-        self.Bind(wx.EVT_RIGHT_UP, self._on_right_up)
-        # self.Bind(wx.EVT_RIGHT_DCLICK, self._on_right_dclick)
-        # self.Bind(wx.EVT_MOUSEWHEEL, self._on_mouse_wheel)
-        self.Bind(wx.EVT_KEY_UP, self._on_key_up)
-        self.Bind(wx.EVT_KEY_DOWN, self._on_key_down)
+        # # self.Bind(wx.EVT_SIZE, self._on_panel_size)
+        # self.Bind(wx.EVT_MOTION, self._on_motion)
+        # self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
+        # self.Bind(wx.EVT_LEFT_UP, self._on_left_up)
+        # # self.Bind(wx.EVT_LEFT_DCLICK, self._on_left_dclick)
+        # self.Bind(wx.EVT_RIGHT_DOWN, self._on_right_down)
+        # self.Bind(wx.EVT_RIGHT_UP, self._on_right_up)
+        # # self.Bind(wx.EVT_RIGHT_DCLICK, self._on_right_dclick)
+        # # self.Bind(wx.EVT_MOUSEWHEEL, self._on_mouse_wheel)
+        # self.Bind(wx.EVT_KEY_UP, self._on_key_up)
+        # self.Bind(wx.EVT_KEY_DOWN, self._on_key_down)
 
         self.transitions = []
         self.bundles = []
@@ -121,9 +108,7 @@ class Editor3D(wx.Panel):
             self.buttons.append(item)
             self.Bind(wx.EVT_MENU, self.on_tool, id=id)
 
-
         self.preview_pane = PreviewPane(self.mainframe)
-
 
         self.editor3d_toolbar.Realize()
         self.editor3d_toolbar_pane = (
@@ -222,4 +207,3 @@ class Editor3D(wx.Panel):
 
     def on_tool(self, evt):
         self.mode = evt.GetId()
-

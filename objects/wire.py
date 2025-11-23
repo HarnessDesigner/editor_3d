@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ...database.project_db import pjt_wire as _pjt_wire
     
     
-def _build_model(p1: _point.Point, p2: _point.Point, diameter: _decimal, has_stripe: bool):
+def build_model(p1: _point.Point, p2: _point.Point, diameter: _decimal, has_stripe: bool):
     line = _line.Line(p1, p2)
     wire_length = line.length()
     wire_radius = diameter / _decimal(2.0)
@@ -90,7 +90,7 @@ class Wire(_Base3D):
         self._dia = self._part.od_mm
 
         if self._is_visible:
-            self._model, self._stripe, self._hit_test_rect = _build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
+            self._model, self._stripe, self._hit_test_rect = build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
 
             p1, p2 = self._hit_test_rect
             p1 += self._p1
@@ -134,7 +134,7 @@ class Wire(_Base3D):
         if not self._is_visible:
             return
 
-        self._model, self._stripe, self._hit_test_rect = _build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
+        self._model, self._stripe, self._hit_test_rect = build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
 
         p1, p2 = self._hit_test_rect
         p1 += self._p1
@@ -154,7 +154,7 @@ class Wire(_Base3D):
             return
 
         if self._is_visible and self._model is None:
-            self._model, self._stripe, self._hit_test_rect = _build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
+            self._model, self._stripe, self._hit_test_rect = build_model(self._p1, self._p2, self._dia, self._stripe_color is not None)
             p1, p2 = self._hit_test_rect
             p1 += self._p1
             p2 += self._p1
