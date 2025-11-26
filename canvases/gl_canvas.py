@@ -61,29 +61,23 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase, metaclass=GLCanvasMeta):
         if self._grid is None:
             self._grid = []
 
-            y = getattr(self, 'min_y', 0.0) - 1e-3
+            y = 0.000003
             half = size / 2.0
-            lines = int(math.ceil(size / step))
 
-            for i in range(-lines, lines+1):
-                coord = i * step
-                d = min(1.0, abs(coord) / fade_dist)
-                c = 0.6 * (1.0 - d) + 0.15 * d
-                self._grid.append(
-                    ((c, c, c),
-                     np.array([[self.center[0] - half, y, self.center[2] + coord],
-                               [self.center[0] + half, y, self.center[2] + coord],
-                               [self.center[0] + coord, y, self.center[2] - half],
-                               [self.center[0] + coord, y, self.center[2] + half]], dtype=float)))
+            self._grid = np.array([[[half, y, coord],
+                                    [half, y, coord],
+                                    [coord, y, half],
+                                    [coord, y, half]]
+                                   for coord in range(-size, size + 1, step)],
+                                  dtype=np.dtypes.Float64DType)
 
         glDisable(GL_LIGHTING)
         glLineWidth(1.0)
         glEnableClientState(GL_VERTEX_ARRAY)
 
-        for color, arr in self._grid:
-            glColor3f(*color)
-            glVertexPointer(3, GL_DOUBLE, 0, arr)
-            glDrawArrays(GL_LINES, 0, 4)
+        glColor4f(0.4, 0.4, 0.4, 0.8)
+        glVertexPointer(3, GL_DOUBLE, 0, self._grid)
+        glDrawArrays(GL_LINES, 0, len(self._grid) * 4)
 
         glDisableClientState(GL_VERTEX_ARRAY)
 
