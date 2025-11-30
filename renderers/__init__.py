@@ -1,5 +1,10 @@
 
 from ...geometry import point as _point
+from ... import config as _config
+
+
+class Config(metaclass=_config.Config):
+    renderer = "GLRenderer"
 
 
 _registered = {}
@@ -25,10 +30,6 @@ def set_renderer_active(name: str):
 
     _active = _registered[name]
 
-    if name == 'GLRenderer':
-        from .. import canvases
-        canvases.set_canvas_active('GLCanvas')
-
 
 class RendererMeta(type):
 
@@ -38,7 +39,7 @@ class RendererMeta(type):
         _registered[name] = cls
 
 
-class RendererBase(metaclass=RendererMeta):
+class RendererBase:
 
     def __init__(self):
         self._up_down_angle = 0.0
@@ -141,5 +142,3 @@ class RendererBase(metaclass=RendererMeta):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
-
-

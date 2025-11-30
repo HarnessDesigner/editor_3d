@@ -1,8 +1,15 @@
 from typing import TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from .. import Editor3D as _Editor3D
+
+
+from ... import config as _config
+
+
+class Config(metaclass=_config.Config):
+    canvas = "GLCanvas"
+
 
 _registered = {}
 _active = None
@@ -13,7 +20,7 @@ def get_active_canvas_cls():
 
 
 def get_active_canvas():
-    return _active.__name__
+    return Config.canvas
 
 
 def get_canvas() -> list[str]:
@@ -25,14 +32,6 @@ def set_canvas_active(name: str):
     if name not in _registered:
         raise NameError(name)
 
-    from .. import renderers
-
-    if name == 'GLCanvas':
-        if renderers.get_active_renderer() != 'GLRenderer':
-            renderers.set_renderer_active('GLRenderer')
-    elif renderers.get_active_renderer() == 'GLRenderer':
-        raise RuntimeError('sanity check')
-
     _active = _registered[name]
 
 
@@ -43,7 +42,7 @@ class CanvasMeta(type):
         _registered[name] = cls
 
 
-class CanvasBase(metaclass=CanvasMeta):
+class CanvasBase:
 
     def __init__(self, editor3d: "_Editor3D", renderer):
         self.editor3d = editor3d

@@ -11,7 +11,8 @@ from .. import config as _config
 from ..wrappers.wxkey_event import KeyEvent
 from ..wrappers.wxmouse_event import MouseEvent
 from .. import utils
-from . import canvases as _canvases
+from .canvases import gl_canvas as _gl_canvas
+from .renderers import gl_renderer as _gl_renderer
 from . import renderers as _renderers
 from . import part_3d_preview as _part_3d_preview
 
@@ -44,8 +45,8 @@ class Editor3D(wx.Panel):
         v_sizer = wx.BoxSizer(wx.VERTICAL)
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self._renderer = _renderers.get_active_renderer_cls()()
-        self.canvas = _canvases.get_active_canvas_cls()(self)
+        self._renderer = _gl_renderer.GLRenderer()
+        self.canvas = _gl_canvas.GLCanvas(self, self._renderer)
 
         hsizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
         v_sizer.Add(hsizer, 1, wx.EXPAND)
@@ -70,7 +71,6 @@ class Editor3D(wx.Panel):
         self._mouse_click_location = None
         self.bundle_dialog = None
         self._right_motion = None
-        self.canvas.draw()
 
         self.editor3d_toolbar = aui_toolbar.AuiToolBar(self.mainframe, style=aui.AUI_TB_GRIPPER | aui.AUI_TB_TEXT)
         self.editor3d_toolbar.SetToolBitmapSize((48, 48))
@@ -108,7 +108,7 @@ class Editor3D(wx.Panel):
             self.buttons.append(item)
             self.Bind(wx.EVT_MENU, self.on_tool, id=id)
 
-        self.preview_pane = PreviewPane(self.mainframe)
+        # self.preview_pane = PreviewPane(self.mainframe)
 
         self.editor3d_toolbar.Realize()
         self.editor3d_toolbar_pane = (
@@ -133,11 +133,13 @@ class Editor3D(wx.Panel):
         self.mainframe.manager.AddPane(self.editor3d_toolbar, self.editor3d_toolbar_pane)
         self.mainframe.manager.Update()
 
-        v_sizer = wx.BoxSizer(wx.VERTICAL)
-        h_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        h_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
-        v_sizer.Add(h_sizer, 1, wx.EXPAND)
-        self.SetSizer(v_sizer)
+        # v_sizer = wx.BoxSizer(wx.VERTICAL)
+        # h_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        # h_sizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
+        # v_sizer.Add(h_sizer, 1, wx.EXPAND)
+        # self.SetSizer(v_sizer)
+
+        self.objects = []
 
         def _do():
             self.buttons[0].SetState(aui.AUI_BUTTON_STATE_CHECKED)

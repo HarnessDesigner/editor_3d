@@ -16,14 +16,10 @@ from ...wrappers.decimal import Decimal as _decimal
 from ...geometry import point as _point
 
 
-from . import CanvasBase, CanvasMeta
+from . import CanvasBase
 
 
-class GLCanvasMeta(type(glcanvas.GLCanvas), CanvasMeta):
-    pass
-
-
-class GLCanvas(glcanvas.GLCanvas, CanvasBase, metaclass=GLCanvasMeta):
+class GLCanvas(glcanvas.GLCanvas, CanvasBase):
 
     def __init__(self, parent, renderer):
         CanvasBase.__init__(self, parent, renderer)
@@ -91,12 +87,12 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase, metaclass=GLCanvasMeta):
         self.SetCurrent(self.context)
 
         if not self.init:
-            self.renderer.init()
+            self.renderer.init(*self.GetSize())
             self.init = True
 
         with self.renderer:
             if self.update_objects:
-                self.renderer.draw(self.editor3d.objects)
+                self.renderer.draw(*self.editor3d.objects)
             else:
                 self.renderer.draw()
                 self.update_objects = True
@@ -238,7 +234,7 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase, metaclass=GLCanvasMeta):
 
     def _on_mouse_wheel(self, event: wx.MouseEvent):
         scale = event.GetWheelRotation() / 20000
-        scale = self.renderer.add_to_scale(scale, scale, scale)
+        scale = self.renderer.add_to_scale(scale, scale, scale)[0]
 
         if scale < 0.001:
             scale = 0.001 - scale

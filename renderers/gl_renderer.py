@@ -3,12 +3,12 @@ from OpenGL.GLU import *
 from OpenGL.GLUT import *
 import numpy as np
 
-from . import RendererBase as _RendererBase
+from . import RendererBase
 from ...geometry import point as _point
 from ... import gl_materials as _gl_materials
 
 
-class GLRenderer(_RendererBase):
+class GLRenderer(RendererBase):
 
     def __init__(self):
         super().__init__()
