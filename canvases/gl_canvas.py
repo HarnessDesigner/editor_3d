@@ -10,8 +10,8 @@ from wx import glcanvas
 from ...wrappers.wxkey_event import KeyEvent
 from ...wrappers.wxmouse_event import MouseEvent
 from ...wrappers.wxartist_event import (ArtistEvent,
-                                       wxEVT_COMMAND_ARTIST_SET_SELECTED,
-                                       wxEVT_COMMAND_ARTIST_UNSET_SELECTED)
+                                        wxEVT_COMMAND_ARTIST_SET_SELECTED,
+                                        wxEVT_COMMAND_ARTIST_UNSET_SELECTED)
 from ...wrappers.decimal import Decimal as _decimal
 from ...geometry import point as _point
 

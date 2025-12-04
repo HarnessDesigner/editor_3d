@@ -58,6 +58,7 @@ def _read_stl(data: bytes):
 
     return model, (corner1, corner2)
 
+
 def _build_model(h_data: "_housing.Housing"):
     length = h_data.length
     width = h_data.width
@@ -90,7 +91,6 @@ def _build_model(h_data: "_housing.Housing"):
 
     if not height:
         height = width / length * width
-
 
     model = build123d.Box(float(length), float(width), float(height))
     box = build123d.Box(float(length), float(width * _decimal(0.90)), float(height * _decimal(0.90)))
