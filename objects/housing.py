@@ -2,9 +2,6 @@ from typing import TYPE_CHECKING
 
 
 import build123d
-import math
-import tempfile
-import os
 
 from ...geometry import point as _point
 from ...wrappers.decimal import Decimal as _decimal
@@ -17,46 +14,6 @@ if TYPE_CHECKING:
     from .. import Editor3D as _Editor3D
     from ...database.global_db import housing as _housing
     from ...database.project_db import pjt_housing as _pjt_housing
-
-
-def _read_step(data):
-    temp_dir = tempfile.gettempdir()
-    tmp_file_path = os.path.join(temp_dir, 'harness_designer_tmp.stp')
-    with open(tmp_file_path, 'wb') as f:
-        f.write(data)
-
-    model = build123d.import_step(tmp_file_path)
-
-    bb = model.bounding_box()
-    corner1 = _point.Point(*[_decimal(float(item)) for item in bb.min])
-    corner2 = _point.Point(*[_decimal(float(item)) for item in bb.max])
-
-    try:
-        os.remove(tmp_file_path)
-    except OSError:
-        pass
-
-    return model, (corner1, corner2)
-
-
-def _read_stl(data: bytes):
-    temp_dir = tempfile.gettempdir()
-    tmp_file_path = os.path.join(temp_dir, 'harness_designer_tmp.stl')
-    with open(tmp_file_path, 'wb') as f:
-        f.write(data)
-
-    model = build123d.import_stl(tmp_file_path)
-
-    bb = model.bounding_box()
-    corner1 = _point.Point(*[_decimal(float(item)) for item in bb.min])
-    corner2 = _point.Point(*[_decimal(float(item)) for item in bb.max])
-
-    try:
-        os.remove(tmp_file_path)
-    except OSError:
-        pass
-
-    return model, (corner1, corner2)
 
 
 def _build_model(h_data: "_housing.Housing"):
@@ -120,7 +77,7 @@ class Housing(_Base3D):
         super().__init__(editor3d)
 
         self.__update_disabled_count = 0
-        self._part = housing_db.part
+        self._part = part = housing_db.part
 
         self._color = self._part.color
         self._ui_color = self._color.ui
@@ -133,35 +90,28 @@ class Housing(_Base3D):
         self._name = housing_db.name
         self._db_obj = housing_db
 
-        model3d = self._part.model3d
+        model3d = part.model3d
         if model3d is not None:
-            model_type = self._part.model3d_type
-            if model_type == 'stl':
-                self._model, self._hit_test_rect = _read_stl(model3d)
-            elif model_type in ('stp', 'step'):
-                self._model, self._hit_test_rect = _read_step(model3d)
-            else:
-                self._model = None
-                self._hit_test_rect = None
-        else:
-            self._model = None
-            self._hit_test_rect = None
+            model, hit_test_rect = model3d.model
 
-        if self._model is None:
-            self._model, self._hit_test_rect = _build_model(self._part)
+            if model is None:
+                model, hit_test_rect = _build_model(part)
+                is_model3d = False
+            else:
+                is_model3d = True
+        else:
+            model, hit_test_rect = _build_model(part)
+
+            is_model3d = False
+
+        self._is_model3d = is_model3d
+        self._model = model
+        self._hit_test_rect = hit_test_rect
+        self._o_hit_test_rect = hit_test_rect
 
         self._triangles = None
         self._normals = None
         self._triangle_count = 0
-
-        p1, p2 = self._hit_test_rect
-
-        self._angle = housing_db.angle_3d
-        p1 @= self._angle
-        p1 += self._center
-
-        p2 @= self._angle
-        p2 += self._center
 
     def recalculate(self, *_):
         self._triangles = None
@@ -172,10 +122,31 @@ class Housing(_Base3D):
 
     def draw(self, renderer):
         if self._triangles is None:
+            self._hit_test_rect = [item.copy() for item in self._o_hit_test_rect]
             self._normals, self._triangles, self._triangle_count = self._get_triangles(self._model)
 
-            self._triangles @= self._angle
-            self._triangles += self._center.as_numpy
+            if self._is_model3d:
+                model3d = self._part.model3d
+
+                offset = model3d.offset
+                angle = model3d.angle
+
+                self._triangles @= angle
+                self._triangles += offset
+
+                for p in self._hit_test_rect:
+                    p @= angle
+                    p += offset.as_numpy
+
+            angle = self._db_obj.angle_3d
+            center = self._db_obj.center
+
+            for p in self._hit_test_rect:
+                p @= angle
+                p += center
+
+            self._triangles @= angle
+            self._triangles += center.as_numpy
 
         renderer.draw_triangles(self._normals, self._triangles, self._triangle_count, self._ui_color.rgb_scalar)
 
@@ -185,30 +156,17 @@ class Housing(_Base3D):
 
     @property
     def angle(self) -> _angle.Angle:
-        return self._angle
+        return self._db_obj.angle_3d
 
     @angle.setter
     def angle(self, value: _angle.Angle):
-        angle_diff = value - self._angle
+        angle = self._db_obj.angle_3d
 
-        self._angle += angle_diff
+        angle_diff = value - angle
 
-        p1, p2 = self._hit_test_rect
-        p1 -= self._center
-        p1 @= angle_diff
-        p1 += self._center
-
-        p2 -= self._center
-        p2 @= angle_diff
-        p2 += self._center
-
-        if self._triangles is not None:
-            self._triangles -= self._center.as_numpy
-            self._triangles @= angle_diff
-            self._triangles += self._center.as_numpy
+        self._db_obj.angle_3d += angle_diff
+        self.recalculate(None)
 
     def move(self, point: _point.Point) -> None:
-        p1, p2 = self._hit_test_rect
-        p1 += point
-        p2 += point
-        self._center += point
+        self._db_obj.center += point
+        self.recalculate(None)

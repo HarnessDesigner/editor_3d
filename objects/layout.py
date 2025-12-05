@@ -2,16 +2,13 @@ from typing import TYPE_CHECKING, Union
 
 
 import build123d
-import math
 
 from ...geometry import point as _point
 from ...wrappers.decimal import Decimal as _decimal
-from ...geometry import angle as _angle
 from . import Base3D as _Base3D
 
 if TYPE_CHECKING:
     from .. import Editor3D as _Editor3D
-    from ...database.global_db import transition as _transition
     from ...database.project_db import pjt_bundle_layout as _pjt_bundle_layout
     from ...database.project_db import pjt_wire3d_layout as _pjt_wire3d_layout
 
@@ -28,7 +25,9 @@ def _build_model(diameter: _decimal):
 
 class Layout(_Base3D):
 
-    def __init__(self, editor3d: "_Editor3D", layout_db: Union["_pjt_wire3d_layout.PJTWire3DLayout", "_pjt_bundle_layout.PJTBundleLayout"]):
+    def __init__(self, editor3d: "_Editor3D",
+                 layout_db: Union["_pjt_wire3d_layout.PJTWire3DLayout", "_pjt_bundle_layout.PJTBundleLayout"]):
+
         super().__init__(editor3d)
         self._db_obj = layout_db
 

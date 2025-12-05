@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+import python_utils
 import build123d
 from OCP.gp import gp_Trsf, gp_Quaternion
 
@@ -32,10 +33,21 @@ def build_model(p1: _point.Point, p2: _point.Point, diameter: _decimal, has_stri
         # Extract the axis of rotation from the wire to create the stripe
         wire_axis = model.faces().filter_by(build123d.GeomType.CYLINDER)[0].axis_of_rotation
 
-        # Take 1mm of the circular arc as the stripe and make it 2D
-        stripe_arc = build123d.Face(
-            (model.edges().filter_by(build123d.GeomType.CIRCLE).sort_by(lambda e: e.distance_to(wire_axis.position))[0])
-            .trim_to_length(0, 1 * build123d.MM).offset_2d(0.01 * build123d.MM, side=build123d.Side.RIGHT))
+        # the stripe is actually a separate 3D object and it carries with it a thickness.
+        # The the stripe is not thick enough the wire color will show through it. We don't
+        # want to use a hard coded thickness because the threshold for for this happpening
+        # causes the stripe thickness to increaseto keep the "bleed through" from happening.
+        # A remap of the diameter to a thickness range is done to get a thickness where the
+        # bleed through will not occur while keeping the stripe from looking like it is not
+        # apart of the wire.
+        stripe_thickness = python_utils.remap(diameter, old_min=_decimal(0.5), old_max=_decimal(5.0),
+                                              new_min=_decimal(0.005), new_max=_decimal(0.015))
+
+        edges = model.edges().filter_by(build123d.GeomType.CIRCLE)
+        edges = edges.sort_by(lambda e: e.distance_to(wire_axis.position))[0]
+        edges = edges.trim_to_length(0, float(diameter / _decimal(3.0) * _decimal(build123d.MM)))
+
+        stripe_arc = build123d.Face(edges.offset_2d(float(stripe_thickness * _decimal(build123d.MM)), side=build123d.Side.RIGHT))
 
         # Define the twist path to follow the wire
         twist = build123d.Helix(
