@@ -22,6 +22,74 @@ if TYPE_CHECKING:
     from ..database.global_db import TableBase
 
 
+MOUSE_NONE = 0x00000000
+MOUSE_LEFT = 0x00000001
+MOUSE_MIDDLE = 0x00000002
+MOUSE_RIGHT = 0x00000004
+MOUSE_AUX1 = 0x00000008
+MOUSE_AUX2 = 0x00000010
+MOUSE_WHEEL = 0x00000020
+
+
+class Config(metaclass=_config.Config):
+
+    class renderer(metaclass=_config.Config):
+        smooth_normals = True
+        smooth_weight = 'uniform'  # 'angle', 'area', or 'uniform'
+
+    class keyboard_settings(metaclass=_config.Config):
+        max_speed_factor = 10.0
+        speed_factor_increment = 0.1
+        start_speed_factor = 1.0
+
+    class settings(metaclass=_config.Config):
+        ground_height = 0.0
+        eye_height = 10.0
+
+    class rotate(metaclass=_config.Config):
+        mouse = MOUSE_MIDDLE
+        up_key = ord('w')
+        down_key = ord('s')
+        left_key = ord('a')
+        right_key = ord('d')
+        sensitivity = 0.1
+
+    class look(metaclass=_config.Config):
+        mouse = MOUSE_LEFT
+        up_key = ord('o')
+        down_key = ord('l')
+        left_key = ord('k')
+        right_key = ord(';')
+        sensitivity = 0.0002
+
+    class pan(metaclass=_config.Config):
+        mouse = MOUSE_RIGHT
+        up_key = ord('8')
+        down_key = ord('2')
+        left_key = ord('4')
+        right_key = ord('6')
+        sensitivity = 0.2
+
+    class walk(metaclass=_config.Config):
+        mouse = MOUSE_NONE
+        forward_key = wx.WXK_UP
+        backward_key = wx.WXK_DOWN
+        left_key = wx.WXK_LEFT
+        right_key = wx.WXK_RIGHT
+        sensitivity = 1.0
+        speed = 1.0
+
+    class zoom(metaclass=_config.Config):
+        mouse = MOUSE_WHEEL
+        in_key = wx.WXK_ADD
+        out_key = wx.WXK_SUBTRACT
+        sensitivity = 1.0
+
+    class reset(metaclass=_config.Config):
+        key = wx.WXK_HOME
+        mouse = MOUSE_NONE
+
+
 class Editor3D(wx.Panel):
 
     ID_POINTER = wx.NewIdRef()
@@ -45,8 +113,8 @@ class Editor3D(wx.Panel):
         v_sizer = wx.BoxSizer(wx.VERTICAL)
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self._renderer = _gl_renderer.GLRenderer()
-        self.canvas = _gl_canvas.GLCanvas(self, self._renderer)
+        self.renderer = _gl_renderer.GLRenderer()
+        self.canvas = _gl_canvas.GLCanvas(self, self.renderer)
 
         hsizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
         v_sizer.Add(hsizer, 1, wx.EXPAND)

@@ -1,5 +1,8 @@
 
+import numpy as np
+
 from ...geometry import point as _point
+from ...wrappers.decimal import Decimal as _decimal
 from ... import config as _config
 
 
@@ -41,17 +44,6 @@ class RendererMeta(type):
 
 class RendererBase:
 
-    def __init__(self):
-        self._up_down_angle = 0.0
-        self._left_right_angle = 0.0
-        self._near_far_angle = 0.0
-        self._pan_x = 0.0
-        self._pan_y = 0.0
-        self._pan_z = 0.0
-        self._scale_x = 1.0
-        self._scale_y = 1.0
-        self._scale_z = 1.0
-
     @classmethod
     def set_active(cls):
         global _active
@@ -60,85 +52,51 @@ class RendererBase:
     def init(self, w: int | float, h: int | float):
         raise NotImplementedError
 
-    def draw(self, *objs):
+    @staticmethod
+    def set_viewport(width: int | float, height: int | float):
         raise NotImplementedError
 
-    def look_at(self, *, camera_point: _point.Point | None = None,
-                focus_point: _point.Point | None = None,
-                direction_vector: _point.Point | None = None):
-        pass
+    @staticmethod
+    def get_world_coords(mx: int, my: int) -> _point.Point:
+        raise NotImplementedError
 
-    def add_to_view_angle(self, x: float | None = None, y: float | None = None,
-                          z: float | None = None) -> tuple[float, float, float]:
-        if x is not None:
-            self._left_right_angle += x
-        if y is not None:
-            self._up_down_angle += y
-        if z is not None:
-            self._near_far_angle += z
+    def reset_camera(self, *_):
+        raise NotImplementedError
 
-        return self._up_down_angle, self._left_right_angle, self._near_far_angle
+    def draw(self) -> "DrawWrapperBase":
+        raise NotImplementedError
 
-    def set_view_angle(self, x: float | None = None, y: float | None = None,
-                       z: float | None = None) -> None:
-        if x is not None:
-            self._left_right_angle = x
-        if y is not None:
-            self._up_down_angle = y
-        if z is not None:
-            self._near_far_angle = z
+    @staticmethod
+    def build_mesh(model) -> tuple[np.ndarray, np.ndarray, int]:
+        raise NotImplementedError
 
-    def get_view_angle(self) -> tuple[float, float, float]:
-        return self._up_down_angle, self._left_right_angle, self._near_far_angle
+    def rotate(self, dx: _decimal, dy: _decimal):
+        raise NotImplementedError
 
-    def add_to_pan(self, x: float | None = None, y: float | None = None,
-                   z: float | None = None) -> tuple[float, float, float]:
-        if x is not None:
-            self._pan_x += x
-        if y is not None:
-            self._pan_y += y
-        if z is not None:
-            self._pan_z += z
+    def look(self, dx: _decimal, dy: _decimal):
+        raise NotImplementedError
 
-        return self._pan_x, self._pan_y, self._pan_z
+    def zoom(self, dx: _decimal, dy: _decimal | None = None):
+        raise NotImplementedError
 
-    def set_pan(self, x: float | None = None, y: float | None = None,
-                z: float | None = None) -> None:
-        if x is not None:
-            self._pan_x = x
-        if y is not None:
-            self._pan_y = y
-        if z is not None:
-            self._pan_z = z
+    def walk(self, dx: _decimal, dy: _decimal):
+        raise NotImplementedError
 
-    def get_pan(self) -> tuple[float, float, float]:
-        return self._pan_x, self._pan_y, self._pan_z
+    def pan(self, dx: _decimal, dy: _decimal):
+        raise NotImplementedError
 
-    def add_to_scale(self, x: float | None = None, y: float | None = None,
-                     z: float | None = None) -> tuple[float, float, float]:
-        if x is not None:
-            self._scale_x += x
-        if y is not None:
-            self._scale_y += y
-        if z is not None:
-            self._scale_z += z
 
-        return self._scale_x, self._scale_y, self._scale_z
-
-    def set_scale(self, x: float | None = None, y: float | None = None,
-                  z: float | None = None) -> None:
-        if x is not None:
-            self._scale_x = x
-        if y is not None:
-            self._scale_y = y
-        if z is not None:
-            self._scale_z = z
-
-    def get_scale(self) -> tuple[float, float, float]:
-        return self._scale_x, self._scale_y, self._scale_z
-
+class DrawWrapperBase:
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
+
+    def grid(self):
+        raise NotImplementedError
+
+    @staticmethod
+    def model(*args, **kwargs):
+        raise NotImplementedError
+

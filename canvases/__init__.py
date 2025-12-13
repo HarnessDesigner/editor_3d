@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .. import Editor3D as _Editor3D
+    from ..renderers import RendererBase as _RendererBase
 
 
 from ... import config as _config
@@ -44,7 +45,7 @@ class CanvasMeta(type):
 
 class CanvasBase:
 
-    def __init__(self, editor3d: "_Editor3D", renderer):
+    def __init__(self, editor3d: "_Editor3D", renderer: "_RendererBase"):
         self.editor3d = editor3d
         self.renderer = renderer
 
