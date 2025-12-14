@@ -648,8 +648,7 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
 
         with self.renderer.draw() as draw:
             for obj in self.editor3d.objects:
-                for normals, triangles, triangle_count, color, material, is_selected in obj:
-                    draw.model(normals, triangles, triangle_count, color, material, is_selected)
+                obj.draw(self.renderer)
 
             draw.grid()
 
