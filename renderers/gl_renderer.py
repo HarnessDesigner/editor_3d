@@ -14,11 +14,10 @@ import math
 from . import RendererBase, DrawWrapperBase
 from ...geometry import point as _point
 from ...geometry import angle as _angle
-from ...geometry import line as _line
-from ... import config as _config
+# from ...geometry import line as _line
+# from ... import config as _config
 from ... import gl_materials as _gl_materials
 from ...wrappers.decimal import Decimal as _decimal
-from .. import Config
 
 
 def _get_triangles(ocp_mesh) -> tuple[np.ndarray, np.ndarray, int]:
@@ -84,6 +83,8 @@ def _get_triangles(ocp_mesh) -> tuple[np.ndarray, np.ndarray, int]:
 
 
 def _get_smooth_triangles(ocp_mesh) -> tuple[np.ndarray, np.ndarray, int]:
+    from .. import Config
+
     loc = TopLoc_Location()  # Face locations
     BRepMesh_IncrementalMesh(
         theShape=ocp_mesh.wrapped,
@@ -241,6 +242,8 @@ def _make_per_corner_arrays(vertices: np.ndarray, faces: np.ndarray,
 class GLRenderer(RendererBase):
 
     def __init__(self):
+        from .. import Config
+
         super().__init__()
         self.viewMatrix = None
         self._grid = None
@@ -268,6 +271,8 @@ class GLRenderer(RendererBase):
         return _point.Point(_decimal(x), _decimal(y), _decimal(z))
 
     def rotate(self, dx, dy):
+        from .. import Config
+
         # Orbit camera_eye around camera_pos.
         # dx/dy are degree deltas (consistent with prior code).
         dx *= _decimal(Config.look.sensitivity)
@@ -318,6 +323,8 @@ class GLRenderer(RendererBase):
         self.Refresh(False)
 
     def look(self, dx, dy):
+        from .. import Config
+
         # Orbit camera_pos around camera_eye (opposite of look)
         dx *= _decimal(Config.rotate.sensitivity)
         dy *= _decimal(Config.rotate.sensitivity)
@@ -375,6 +382,8 @@ class GLRenderer(RendererBase):
         self.Refresh(False)
 
     def zoom(self, delta, *_):
+        from .. import Config
+
         # Move camera_eye along forward direction (toward/away from camera_pos)
         eye = self.camera_eye.as_numpy
         pos = self.camera_pos.as_numpy
@@ -401,6 +410,8 @@ class GLRenderer(RendererBase):
         ) = _decimal(new_eye[0]), _decimal(new_eye[1]), _decimal(new_eye[2])
 
     def walk(self, dx, dy):
+        from .. import Config
+
         # Use camera forward vector (from eye to pos).
         # Move both camera_pos and camera_eye.
         look_dx = dx
@@ -487,6 +498,8 @@ class GLRenderer(RendererBase):
         self.look(-(look_dx * _decimal(20.0)), _decimal(0.0))
 
     def pan(self, dx, dy):
+        from .. import Config
+
         # Translate both camera_pos and camera_eye in camera's right/up directions
         dx *= _decimal(Config.pan.sensitivity)
         dy *= _decimal(Config.pan.sensitivity)
@@ -532,6 +545,10 @@ class GLRenderer(RendererBase):
 
         return self._grid
 
+    @staticmethod
+    def set_viewport(width: int | float, height: int | float):
+        GL.glViewport(0, 0, width, height)
+
     def init(self, w: int | float, h: int | float):
         GL.glClearColor(0.20, 0.20, 0.20, 0.0)
         GL.glViewport(0, 0, w, h)
@@ -575,6 +592,8 @@ class GLRenderer(RendererBase):
 
     @staticmethod
     def build_mesh(model) -> tuple[np.ndarray, np.ndarray, int]:
+        from .. import Config
+
         if Config.renderer.smooth_normals:
             return _get_smooth_triangles(model)
 
@@ -591,7 +610,7 @@ class DrawWrapper(DrawWrapperBase):
         self.renderer = renderer
         self.camera_pos = renderer.camera_pos
         self.camera_eye = renderer.camera_eye
-        self.grid = renderer.grid
+        self._grid = renderer.grid
 
     def __enter__(self):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
@@ -643,6 +662,8 @@ class DrawWrapper(DrawWrapperBase):
         GL.glPopMatrix()
 
     def reset_camera(self, *_):
+        from .. import Config
+
         self.camera_pos = _point.Point(_decimal(0.0),
                                        _decimal(Config.settings.eye_height),
                                        _decimal(0.0))
@@ -654,15 +675,11 @@ class DrawWrapper(DrawWrapperBase):
     def grid(self):
         if self.grid:
             GL.glColor4f(0.8, 0.8, 0.8, 0.4)
-            GL.glVertexPointer(3, GL.GL_DOUBLE, 0, self.grid[0])
-            GL.glDrawArrays(GL.GL_TRIANGLES, 0, len(self.grid[0]) * 3)
+            GL.glVertexPointer(3, GL.GL_DOUBLE, 0, self._grid[0])
+            GL.glDrawArrays(GL.GL_TRIANGLES, 0, len(self._grid[0]) * 3)
             GL.glColor4f(0.3, 0.3, 0.3, 0.4)
-            GL.glVertexPointer(3, GL.GL_DOUBLE, 0, self.grid[1])
-            GL.glDrawArrays(GL.GL_TRIANGLES, 0, len(self.grid[1]) * 3)
-
-    @staticmethod
-    def set_viewport(width: int | float, height: int | float):
-        GL.glViewport(0, 0, width, height)
+            GL.glVertexPointer(3, GL.GL_DOUBLE, 0, self._grid[1])
+            GL.glDrawArrays(GL.GL_TRIANGLES, 0, len(self._grid[1]) * 3)
 
     @staticmethod
     def model(

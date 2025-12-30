@@ -16,7 +16,6 @@ from ... import gl_materials
 from ...database.global_db import model3d as _model3d
 from ...wrappers import color as _color
 from ... import utils
-from ..objects import transition as _t_builder, get_triangles
 from ...database.global_db import transition as _transition
 
 

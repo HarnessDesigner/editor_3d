@@ -5,17 +5,13 @@ import wx
 
 from wx import glcanvas
 
-from ...wrappers.wxkey_event import KeyEvent
-from ...wrappers.wxmouse_event import MouseEvent
-from ...wrappers.wxartist_event import (ArtistEvent,
-                                        wxEVT_COMMAND_ARTIST_SET_SELECTED,
-                                        wxEVT_COMMAND_ARTIST_UNSET_SELECTED)
+# from ...wrappers.wxkey_event import KeyEvent
+# from ...wrappers.wxmouse_event import MouseEvent
+# from ...wrappers.wxartist_event import (ArtistEvent,
+#                                         wxEVT_COMMAND_ARTIST_SET_SELECTED,
+#                                         wxEVT_COMMAND_ARTIST_UNSET_SELECTED)
 from ...wrappers.decimal import Decimal as _decimal
 from ...geometry import point as _point
-from .. import Config
-
-from .. import (MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT,
-                MOUSE_AUX1, MOUSE_WHEEL, MOUSE_AUX2)
 
 from . import CanvasBase
 
@@ -212,11 +208,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
         self.is_motion = False
         self.mouse_pos = None
 
-        t = threading.Thread(target=self.make_wires)
-        t.daemon = True
-        t.start()
-
     def _key_loop(self):
+        from .. import Config
 
         while not self._key_event.is_set():
             with self._key_queue_lock:
@@ -235,6 +228,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
             self._key_event.wait(0.05)
 
     def on_key_up(self, evt: wx.KeyEvent):
+        from .. import Config
+
         keycode = evt.GetKeyCode()
         evt.Skip()
 
@@ -285,6 +280,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
             return
 
     def on_key_down(self, evt: wx.KeyEvent):
+        from .. import Config
+
         keycode = evt.GetKeyCode()
         evt.Skip()
 
@@ -337,6 +334,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
             return
 
     def _process_rotate_key(self, factor, *keys):
+        from .. import Config
+
         dx = 0.0
         dy = 0.0
 
@@ -354,6 +353,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
                              _decimal(dy) * _decimal(factor))
 
     def _process_look_key(self, factor, *keys):
+        from .. import Config
+
         dx = 0.0
         dy = 0.0
 
@@ -371,6 +372,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
                            _decimal(dy) * _decimal(factor))
 
     def _process_pan_key(self, factor, *keys):
+        from .. import Config
+
         dx = 0.0
         dy = 0.0
 
@@ -388,6 +391,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
                           _decimal(dy) * _decimal(factor))
 
     def _process_walk_key(self, factor, *keys):
+        from .. import Config
+
         dx = 0.0
         dy = 0.0
 
@@ -405,6 +410,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
                            _decimal(dy) * _decimal(factor))
 
     def _process_zoom_key(self, factor, *keys):
+        from .. import Config
+
         delta = 0.0
 
         for key in keys:
@@ -419,6 +426,8 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
         self.renderer.reset_camera()
 
     def _process_mouse(self, code):
+        from .. import Config
+
         for config, func in (
             (Config.walk, self.renderer.walk),
             (Config.pan, self.renderer.pan),
@@ -541,6 +550,11 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
         evt.Skip()
 
     def on_mouse_motion(self, evt: wx.MouseEvent):
+        from .. import (
+            MOUSE_LEFT, MOUSE_MIDDLE, MOUSE_RIGHT,
+            MOUSE_AUX1, MOUSE_WHEEL, MOUSE_AUX2
+        )
+
         if self.HasCapture():
             x, y = evt.GetPosition()
             last_x, last_y = self.mouse_pos
@@ -650,6 +664,6 @@ class GLCanvas(glcanvas.GLCanvas, CanvasBase):
             for obj in self.editor3d.objects:
                 obj.draw(self.renderer)
 
-            draw.grid()
+            # draw.grid()
 
         self.SwapBuffers()
