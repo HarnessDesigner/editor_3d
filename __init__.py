@@ -14,7 +14,7 @@ from .. import utils
 from .canvases import gl_canvas as _gl_canvas
 from .renderers import gl_renderer as _gl_renderer
 from . import renderers as _renderers
-from . import part_3d_preview as _part_3d_preview
+from . import part3d_preview as _part3d_preview
 
 
 if TYPE_CHECKING:

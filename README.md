@@ -1,2 +1,2 @@
-# editor_3d
+# editor3d
 3D editor
