@@ -1,93 +1,21 @@
 from typing import TYPE_CHECKING
 
 import wx
-import numpy as np
-from wx.lib.agw import aui
+
+from wx import aui
 from ..widgets import aui_toolbar
 
 from .. import image as _image
-from . import canvas as _canvas
-from .. import config as _config
-from ..wrappers.wxkey_event import KeyEvent
-from ..wrappers.wxmouse_event import MouseEvent
-from .. import utils
-from .canvases import gl_canvas as _gl_canvas
-from .renderers import gl_renderer as _gl_renderer
-from . import renderers as _renderers
-from . import part3d_preview as _part3d_preview
+from .canvas import canvas as _canvas
+
+from ..geometry import point as _point
+from ..wrappers.decimal import Decimal as _decimal
+
+from . import part_3d_preview as _part3d_preview
 
 
 if TYPE_CHECKING:
-    from .. import ui
-    from ..database.global_db import TableBase
-
-
-MOUSE_NONE = 0x00000000
-MOUSE_LEFT = 0x00000001
-MOUSE_MIDDLE = 0x00000002
-MOUSE_RIGHT = 0x00000004
-MOUSE_AUX1 = 0x00000008
-MOUSE_AUX2 = 0x00000010
-MOUSE_WHEEL = 0x00000020
-
-
-class Config(metaclass=_config.Config):
-
-    class renderer(metaclass=_config.Config):
-        smooth_normals = True
-        smooth_weight = 'uniform'  # 'angle', 'area', or 'uniform'
-
-    class keyboard_settings(metaclass=_config.Config):
-        max_speed_factor = 10.0
-        speed_factor_increment = 0.1
-        start_speed_factor = 1.0
-
-    class settings(metaclass=_config.Config):
-        ground_height = 0.0
-        eye_height = 10.0
-
-    class rotate(metaclass=_config.Config):
-        mouse = MOUSE_MIDDLE
-        up_key = ord('w')
-        down_key = ord('s')
-        left_key = ord('a')
-        right_key = ord('d')
-        sensitivity = 0.1
-
-    class look(metaclass=_config.Config):
-        mouse = MOUSE_LEFT
-        up_key = ord('o')
-        down_key = ord('l')
-        left_key = ord('k')
-        right_key = ord(';')
-        sensitivity = 0.0002
-
-    class pan(metaclass=_config.Config):
-        mouse = MOUSE_RIGHT
-        up_key = ord('8')
-        down_key = ord('2')
-        left_key = ord('4')
-        right_key = ord('6')
-        sensitivity = 0.2
-
-    class walk(metaclass=_config.Config):
-        mouse = MOUSE_NONE
-        forward_key = wx.WXK_UP
-        backward_key = wx.WXK_DOWN
-        left_key = wx.WXK_LEFT
-        right_key = wx.WXK_RIGHT
-        sensitivity = 1.0
-        speed = 1.0
-
-    class zoom(metaclass=_config.Config):
-        mouse = MOUSE_WHEEL
-        in_key = wx.WXK_ADD
-        out_key = wx.WXK_SUBTRACT
-        sensitivity = 1.0
-
-    class reset(metaclass=_config.Config):
-        key = wx.WXK_HOME
-        mouse = MOUSE_NONE
+    from .. import ui as _ui
 
 
 class Editor3D(wx.Panel):
@@ -103,35 +31,22 @@ class Editor3D(wx.Panel):
     ID_TPA_LOCK = wx.NewIdRef()
     ID_CPA_LOCK = wx.NewIdRef()
 
-    def __init__(self, parent):
+    ID_MOVE = wx.NewIdRef()
+    ID_SET_ANGLE = wx.NewIdRef()
+
+    def __init__(self, parent, mainframe: "_ui.MainFrame", size: tuple[int, int]):
+        wx.Panel.__init__(self, parent, wx.ID_ANY, size=size, style=wx.BORDER_NONE)
+        self.mainframe = mainframe
+        w_size = size
+        view_size = _canvas.Canvas.get_view_size()
+
+        w, h = size
+        size = _point.Point(_decimal(w), _decimal(h))
+        pos = (size - view_size) / _decimal(2.0)
+
         self.mode = self.ID_POINTER
 
-        self.mainframe: "ui.MainFrame" = parent.GetParent()
         self.global_db = self.mainframe.global_db
-        wx.Panel.__init__(self, parent, wx.ID_ANY, style=wx.BORDER_NONE)
-
-        v_sizer = wx.BoxSizer(wx.VERTICAL)
-        hsizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.renderer = _gl_renderer.GLRenderer()
-        self.canvas = _gl_canvas.GLCanvas(self, self.renderer)
-
-        hsizer.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 5)
-        v_sizer.Add(hsizer, 1, wx.EXPAND)
-
-        self.SetSizer(v_sizer)
-
-        # # self.Bind(wx.EVT_SIZE, self._on_panel_size)
-        # self.Bind(wx.EVT_MOTION, self._on_motion)
-        # self.Bind(wx.EVT_LEFT_DOWN, self._on_left_down)
-        # self.Bind(wx.EVT_LEFT_UP, self._on_left_up)
-        # # self.Bind(wx.EVT_LEFT_DCLICK, self._on_left_dclick)
-        # self.Bind(wx.EVT_RIGHT_DOWN, self._on_right_down)
-        # self.Bind(wx.EVT_RIGHT_UP, self._on_right_up)
-        # # self.Bind(wx.EVT_RIGHT_DCLICK, self._on_right_dclick)
-        # # self.Bind(wx.EVT_MOUSEWHEEL, self._on_mouse_wheel)
-        # self.Bind(wx.EVT_KEY_UP, self._on_key_up)
-        # self.Bind(wx.EVT_KEY_DOWN, self._on_key_down)
 
         self.transitions = []
         self.bundles = []
@@ -140,19 +55,21 @@ class Editor3D(wx.Panel):
         self.bundle_dialog = None
         self._right_motion = None
 
-        self.editor3d_toolbar = aui_toolbar.AuiToolBar(self.mainframe, style=aui.AUI_TB_GRIPPER | aui.AUI_TB_TEXT)
-        self.editor3d_toolbar.SetToolBitmapSize((48, 48))
+        self.editor3d_toolbar = aui_toolbar.AuiToolBar(self.mainframe,
+                                                       style=aui.AUI_TB_GRIPPER | aui.AUI_TB_TEXT)
 
-        pointer = _image.icons.pointer.resize(48, 48)
-        transition = _image.icons.transition.resize(48, 48)
-        connector = _image.icons.connector.resize(48, 48)
-        terminal = _image.icons.terminal.resize(48, 48)
-        seal = _image.icons.seal.resize(48, 48)
-        wire = _image.icons.wire.resize(48, 48)
-        splice = _image.icons.splice.resize(48, 48)
-        bundle_cover = _image.icons.bundle_cover.resize(48, 48)
-        tpa_lock = _image.icons.tpa_lock.resize(48, 48)
-        cpa_lock = _image.icons.cpa_lock.resize(48, 48)
+        self.editor3d_toolbar.SetToolBitmapSize((32, 32))
+
+        pointer = _image.icons.pointer.resize(32, 32)
+        transition = _image.icons.transition.resize(32, 32)
+        connector = _image.icons.connector.resize(32, 32)
+        terminal = _image.icons.terminal.resize(32, 32)
+        seal = _image.icons.seal.resize(32, 32)
+        wire = _image.icons.wire.resize(32, 32)
+        splice = _image.icons.splice.resize(32, 32)
+        bundle_cover = _image.icons.bundle_cover.resize(32, 32)
+        tpa_lock = _image.icons.tpa_lock.resize(32, 32)
+        cpa_lock = _image.icons.cpa_lock.resize(32, 32)
 
         btns = [
             (self.ID_POINTER, pointer, 'Pointer'),
@@ -170,9 +87,11 @@ class Editor3D(wx.Panel):
         self.buttons = []
 
         for id, img, label in btns:  # NOQA
-            item = self.editor3d_toolbar.AddTool(id, label, img.bitmap,
-                                                 img.disabled_bitmap,
-                                                 aui.ITEM_RADIO)
+            item = self.editor3d_toolbar.AddTool(
+                id, label, img.bitmap,
+                img.disabled_bitmap,
+                aui.ITEM_RADIO
+                )
             self.buttons.append(item)
             self.Bind(wx.EVT_MENU, self.on_tool, id=id)
 
@@ -186,7 +105,7 @@ class Editor3D(wx.Panel):
             .Gripper(True)
             .Resizable(True)
             .Movable(True)
-            .Name('editor3d_toolbar')
+            .Name('editor_toolbar')
             .CaptionVisible(False)
             .PaneBorder(True)
             .CloseButton(False)
@@ -198,7 +117,8 @@ class Editor3D(wx.Panel):
             .ToolbarPane()
         )
 
-        self.mainframe.manager.AddPane(self.editor3d_toolbar, self.editor3d_toolbar_pane)
+        self.mainframe.manager.AddPane(self.editor3d_toolbar,
+                                       self.editor3d_toolbar_pane)
         self.mainframe.manager.Update()
 
         # v_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -213,6 +133,61 @@ class Editor3D(wx.Panel):
             self.buttons[0].SetState(aui.AUI_BUTTON_STATE_CHECKED)
 
         wx.CallAfter(_do)
+
+        self.panel = wx.Panel(self, wx.ID_ANY,
+                              size=view_size.as_int[:-1], pos=pos.as_int[:-1])
+
+        self.canvas = _canvas.Canvas(self.panel, self.mainframe,
+                                     size=view_size.as_int[:-1], pos=(0, 0))
+
+        self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase_background)
+
+        w, h = w_size
+        s = max([w, h])
+
+        x = w
+        y = h
+
+        s //= 8
+
+        x -= s
+        y -= s + (s / 2)
+
+        self.axis_overlay = _axis_indicators.Overlay(
+            self, size=(int(s), int(s)), pos=(int(x), int(y)))
+
+        self.Bind(wx.EVT_SIZE, self.on_size)
+
+    def on_size(self, evt):
+        x1, y1 = self.axis_overlay.GetPosition()
+        w, h = self.axis_overlay.GetSize()
+
+        x2 = x1 + w
+        y2 = y1 + h
+
+        w, h = evt.GetSize()
+
+        if x1 < 0:
+            x2 += -x1
+            x1 = 0
+        if y1 < 0:
+            y2 += -y1
+            y1 = 0
+
+        if x2 > w:
+            x1 += w - x2
+
+        if y2 > h:
+            y1 += h - y2
+
+        self.axis_overlay.Move((x1, y1))
+        evt.Skip()
+
+    def on_erase_background(self, _):
+        pass
+
+
+
 
     def SetSelected(self, obj, flag):
         if not flag and self._selected == obj:
