@@ -4,9 +4,6 @@ import math
 import numpy as np
 
 
-from .. import helpers as _helpers
-
-
 if TYPE_CHECKING:
     from . import canvas as _canvas
 

@@ -13,29 +13,18 @@ from OpenGL import GLU
 from harness_designer import Config
 from harness_designer import MOUSE_REVERSE_Y_AXIS
 from harness_designer import MOUSE_REVERSE_X_AXIS
+from ... import debug as _debug
+# from ... import helpers as _helpers
 
-
-Config = Config.editor3d
-
-try:
-    from .. import debug as _debug
-    from .. import helpers as _helpers
-
-    from ..geometry import point as _point
-    from ..wrappers.wrap_decimal import Decimal as _decimal
-    from .. import axis_indicators as _axis_indicators
-
-except ImportError:
-    import debug as _debug  # NOQA
-    import helpers as _helpers  # NOQA
-
-    from geometry import point as _point  # NOQA
-    from wrappers.wrap_decimal import Decimal as _decimal  # NOQA
-    import axis_indicators as _axis_indicators  # NOQA
-
+from ...geometry import point as _point
+from ...wrappers.decimal import Decimal as _decimal
+# from ... import axis_indicators as _axis_indicators
 
 if TYPE_CHECKING:
     from ... import ui as _ui
+
+
+Config = Config.editor3d
 
 # ***********************************************************
 
@@ -110,7 +99,7 @@ class Canvas(glcanvas.GLCanvas):
     possible objects that might exist which would impact the program performance
     if it is done on the same core that the UI is running on.
     """
-    def __init__(self, parent, mainframe: _ui.MainFrame, size=wx.DefaultSize, pos=wx.DefaultPosition):
+    def __init__(self, parent, mainframe: "_ui.MainFrame", size=wx.DefaultSize, pos=wx.DefaultPosition):
         glcanvas.GLCanvas.__init__(self, parent, -1, size=size, pos=pos)
 
         self.mainframe = mainframe
@@ -139,7 +128,7 @@ class Canvas(glcanvas.GLCanvas):
         self.objects = []
         self._ref_count = 0
         # self.free_rot: _free_rotate.FreeRotate = None
-        self.axis: _axis_indicators.Indicators = None
+        # self.axis: _axis_indicators.Indicators = None
 
         from . import key_handler as _key_handler
         from . import mouse_handler as _mouse_handler
@@ -341,7 +330,7 @@ class Canvas(glcanvas.GLCanvas):
         GLU.gluPerspective(65, aspect, 0.1, 1000.0)
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
-        self.axis = _axis_indicators.Indicators(self.mainframe)
+        # self.axis = _axis_indicators.Indicators(self.mainframe)
 
     @staticmethod
     def draw_grid():

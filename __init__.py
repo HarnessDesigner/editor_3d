@@ -4,12 +4,12 @@ import wx
 
 from wx import aui
 from ..widgets import aui_toolbar
-
 from .. import image as _image
 from .canvas import canvas as _canvas
-
 from ..geometry import point as _point
 from ..wrappers.decimal import Decimal as _decimal
+
+from . import axis_indicators as _axis_indicators
 
 from . import part_3d_preview as _part3d_preview
 
@@ -34,15 +34,9 @@ class Editor3D(wx.Panel):
     ID_MOVE = wx.NewIdRef()
     ID_SET_ANGLE = wx.NewIdRef()
 
-    def __init__(self, parent, mainframe: "_ui.MainFrame", size: tuple[int, int]):
-        wx.Panel.__init__(self, parent, wx.ID_ANY, size=size, style=wx.BORDER_NONE)
+    def __init__(self, parent, mainframe: "_ui.MainFrame"):
+        wx.Panel.__init__(self, parent, wx.ID_ANY, style=wx.BORDER_NONE)
         self.mainframe = mainframe
-        w_size = size
-        view_size = _canvas.Canvas.get_view_size()
-
-        w, h = size
-        size = _point.Point(_decimal(w), _decimal(h))
-        pos = (size - view_size) / _decimal(2.0)
 
         self.mode = self.ID_POINTER
 
@@ -87,11 +81,8 @@ class Editor3D(wx.Panel):
         self.buttons = []
 
         for id, img, label in btns:  # NOQA
-            item = self.editor3d_toolbar.AddTool(
-                id, label, img.bitmap,
-                img.disabled_bitmap,
-                aui.ITEM_RADIO
-                )
+            item = self.editor3d_toolbar.AddTool(id, label, img.bitmap,
+                                                 img.disabled_bitmap, wx.ITEM_RADIO)
             self.buttons.append(item)
             self.Bind(wx.EVT_MENU, self.on_tool, id=id)
 
@@ -134,60 +125,67 @@ class Editor3D(wx.Panel):
 
         wx.CallAfter(_do)
 
+        view_size = _canvas.Canvas.get_view_size()
+
         self.panel = wx.Panel(self, wx.ID_ANY,
-                              size=view_size.as_int[:-1], pos=pos.as_int[:-1])
+                              size=view_size.as_int[:-1], pos=(0, 0))
 
         self.canvas = _canvas.Canvas(self.panel, self.mainframe,
                                      size=view_size.as_int[:-1], pos=(0, 0))
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase_background)
 
-        w, h = w_size
-        s = max([w, h])
-
-        x = w
-        y = h
-
-        s //= 8
-
-        x -= s
-        y -= s + (s / 2)
-
+        # w, h = w_size
+        # s = max([w, h])
+        #
+        # x = w
+        # y = h
+        #
+        # s //= 8
+        #
+        # x -= s
+        # y -= s + (s / 2)
+        #
         self.axis_overlay = _axis_indicators.Overlay(
-            self, size=(int(s), int(s)), pos=(int(x), int(y)))
+            self, size=(100, 100), pos=(0, 0))
 
         self.Bind(wx.EVT_SIZE, self.on_size)
 
     def on_size(self, evt):
-        x1, y1 = self.axis_overlay.GetPosition()
-        w, h = self.axis_overlay.GetSize()
-
-        x2 = x1 + w
-        y2 = y1 + h
-
         w, h = evt.GetSize()
 
+        view_size = _canvas.Canvas.get_view_size()
+
+        size = _point.Point(_decimal(w), _decimal(h))
+        pos = (size - view_size) / _decimal(2.0)
+
+        self.canvas.Move(pos.as_int[:-1])
+
+        x1, y1 = self.axis_overlay.GetPosition()
+        aw, ah = self.axis_overlay.GetSize()
+
+        x2 = x1 + aw
+        y2 = y1 + ah
+
         if x1 < 0:
-            x2 += -x1
-            x1 = 0
+            x = 0
+        elif x2 > w:
+            x = w - aw
+        else:
+            x = x1
+
         if y1 < 0:
-            y2 += -y1
-            y1 = 0
+            y = 0
+        elif y2 > ah:
+            y = h - ah
+        else:
+            y = y1
 
-        if x2 > w:
-            x1 += w - x2
-
-        if y2 > h:
-            y1 += h - y2
-
-        self.axis_overlay.Move((x1, y1))
+        self.axis_overlay.Move((x, y))
         evt.Skip()
 
     def on_erase_background(self, _):
         pass
-
-
-
 
     def SetSelected(self, obj, flag):
         if not flag and self._selected == obj:
@@ -202,53 +200,6 @@ class Editor3D(wx.Panel):
             self._selected.IsSelected(True)
         else:
             raise RuntimeError('sanity check')
-
-    def _on_motion(self, evt: MouseEvent):
-        if evt.RightIsDown():
-            self._right_motion = True
-
-        evt.Skip()
-
-    def _on_left_down(self, evt: MouseEvent):  # NOQA
-        evt.Skip()
-
-    def _on_left_up(self, evt: MouseEvent):  # NOQA
-        evt.Skip()
-
-    ID_ADD_TRANSITION = wx.NewIdRef()
-    ID_ADD_BUNDLE = wx.NewIdRef()
-
-    def _on_right_down(self, evt: MouseEvent):
-        self._right_motion = False
-        evt.Skip()
-
-    def _on_right_up(self, evt: MouseEvent):
-        evt.Skip()
-
-        if self._right_motion:
-            self._right_motion = False
-            return
-
-        artist = evt.GetArtist()
-        x, y = evt.GetPosition()
-
-        if artist is None:
-            menu = wx.Menu()
-            menu.Append(self.ID_ADD_TRANSITION, "Add Transition")
-            menu.Append(self.ID_ADD_BUNDLE, "Add Bundle")
-
-            self._mouse_click_location = evt.GetPosition3D()
-
-            self.PopupMenu(menu, x, y)
-        else:
-            pass
-            # obj.menu(self, x, y)
-
-    def _on_key_up(self, evt: KeyEvent):  # NOQA
-        evt.Skip()
-
-    def _on_key_down(self, evt: KeyEvent):  # NOQA
-        evt.Skip()
 
     def on_tool(self, evt):
         self.mode = evt.GetId()

@@ -181,26 +181,18 @@ from OpenGL import GLU
 
 import numpy as np
 
-from harness_designer import Config
+from ...wrappers.decimal import Decimal as _decimal
+from ...geometry import point as _point
+from ...geometry import angle as _angle
+from ...geometry import line as _line
+from ... import Config
 
-
-Config = Config.editor3d
-
-
-try:
-    from ..wrappers.wrap_decimal import Decimal as _decimal
-    from ..geometry import point as _point
-    from ..geometry import angle as _angle
-    from ..geometry import line as _line
-except ImportError:
-    from wrappers.wrap_decimal import Decimal as _decimal  # NOQA
-    from geometry import point as _point  # NOQA
-    from geometry import angle as _angle  # NOQA
-    from geometry import line as _line  # NOQA
 
 if TYPE_CHECKING:
     from . import canvas as _canvas
 
+
+Config = Config.editor3d
 
 ZERO_POINT = _point.ZERO_POINT
 
