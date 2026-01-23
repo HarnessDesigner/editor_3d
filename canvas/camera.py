@@ -264,30 +264,29 @@ class Camera:
         if self._is_dirty:
             self._update_views()
 
-        print('projection:', self.projection)
-        print()
-        print('model view:', self.modelview)
-        print()
-        print('clip:', self.clip)
-        print()
-        print('viewport', self.viewport)
-        print()
-        print('camera center:', self.position)
-        print('camera eye:', self.eye)
-
         planes = self._frustum_planes
         aabb_in_frustum_planes = self.aabb_in_frustum_planes
         res = [
             [_line.Line(self.eye, obj.position).length(), obj] for obj in objs
             if any(aabb_in_frustum_planes(mn.as_float, mx.as_float, planes)
-                   for mn, mx in obj.hit_test_rect)]
+                   for mn, mx in obj.rect)]
 
         # sort the objects by distance from the camera
         res = sorted(res, key=lambda o: o[0])
 
         # we need to have the order as far -> near, we also trim off the distance
         # that was used for saorting
-        return [res[i][1] for i in range(len(res) - 1, -1, -1)]
+        res = [res[i][1] for i in range(len(res) - 1, -1, -1)]
+
+        ret = []
+        offset = 0
+        for obj in res:
+            for renderer in obj.triangles:
+                if renderer.is_opaque:
+                    ret.insert(offset, obj)
+                    offset += 1
+
+        return ret
 
     @staticmethod
     def aabb_in_frustum_planes(mn_xyz, mx_xyz, planes: np.ndarray) -> bool:

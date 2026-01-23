@@ -18,7 +18,7 @@ from ... import debug as _debug
 
 from ...geometry import point as _point
 from ...wrappers.decimal import Decimal as _decimal
-# from ... import axis_indicators as _axis_indicators
+from .. import axis_indicators as _axis_indicators
 
 if TYPE_CHECKING:
     from ... import ui as _ui
@@ -330,7 +330,7 @@ class Canvas(glcanvas.GLCanvas):
         GLU.gluPerspective(65, aspect, 0.1, 1000.0)
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
-        # self.axis = _axis_indicators.Indicators(self.mainframe)
+        self.axis = _axis_indicators.Indicators(self.mainframe)
 
     @staticmethod
     def draw_grid():
@@ -494,58 +494,38 @@ class Canvas(glcanvas.GLCanvas):
 
     @_debug.timeit
     def OnDraw(self):
-        # self.axis_indicator.set_angle((self.camera.eye - self.camera.position).inverse)
-        # self.SetCurrent(self.context)
+        self.mainframe.editor3d.axis_overlay.set_angle((self.camera.eye - self.camera.position).inverse)
 
-        w, h = self.GetSize()
-        aspect = w / float(h)
+        with self.context:
 
-        GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-        GL.glMatrixMode(GL.GL_PROJECTION)
-        GL.glLoadIdentity()
-        GLU.gluPerspective(65, aspect, 0.1, 1000.0)
+            w, h = self.GetSize()
+            aspect = w / float(h)
 
-        GL.glMatrixMode(GL.GL_MODELVIEW)
-        GL.glLoadIdentity()
-        self.camera.set()
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+            GL.glMatrixMode(GL.GL_PROJECTION)
+            GL.glLoadIdentity()
+            GLU.gluPerspective(65, aspect, 0.1, 1000.0)
 
-        GL.glPushMatrix()
+            GL.glMatrixMode(GL.GL_MODELVIEW)
+            GL.glLoadIdentity()
 
-        GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
-        GL.glEnableClientState(GL.GL_NORMAL_ARRAY)
+            self.camera.set()
 
-        objs = self.camera.get_objects_in_view(self.objects)
+            GL.glPushMatrix()
 
-        triangles = []
-        last_opaque_index = 0
+            print(self.objects)
 
-        for obj in objs:
-            for tris, nrmls, colors, count, is_opaque in obj.triangles:
-                if is_opaque:
-                    triangles.insert(last_opaque_index, [tris, nrmls, colors[0], count, obj.is_selected])
-                    last_opaque_index += 1
-                else:
-                    triangles.append([tris, nrmls, colors[0], count, obj.is_selected])
+            objs = self.camera.get_objects_in_view(self.objects)
 
-        for triangles, normals, color, triangle_count, is_selected in triangles:
-            GL.glLightfv(GL.GL_LIGHT0, GL.GL_AMBIENT, color)
-            GL.glLightfv(GL.GL_LIGHT0, GL.GL_DIFFUSE, color)
-            GL.glLightfv(GL.GL_LIGHT0, GL.GL_SPECULAR, color)
-            GL.glMaterialfv(GL.GL_FRONT, GL.GL_AMBIENT, color)
-            GL.glMaterialfv(GL.GL_FRONT, GL.GL_DIFFUSE, color)
-            GL.glMaterialfv(GL.GL_FRONT, GL.GL_SPECULAR, color)
-            GL.glMaterialf(GL.GL_FRONT, GL.GL_SHININESS, 60.0)
+            print(objs)
 
-            GL.glColor4f(*color)
-            GL.glVertexPointer(3, GL.GL_DOUBLE, 0, triangles)
-            GL.glNormalPointer(GL.GL_DOUBLE, 0, normals)
-            GL.glDrawArrays(GL.GL_TRIANGLES, 0, triangle_count)
+            for obj in objs:
+                for renderer in obj.triangles:
+                    renderer()
 
-        GL.glDisableClientState(GL.GL_VERTEX_ARRAY)
-        GL.glDisableClientState(GL.GL_NORMAL_ARRAY)
-        # self._render_bounding_boxes()
-        self.draw_grid()
-        self._render_bounding_boxes()
-        GL.glPopMatrix()
+            # self._render_bounding_boxes()
+            self.draw_grid()
+            # self._render_bounding_boxes()
+            GL.glPopMatrix()
 
-        self.SwapBuffers()
+            self.SwapBuffers()

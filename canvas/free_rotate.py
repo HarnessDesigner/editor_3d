@@ -91,7 +91,17 @@ class FreeRotate:
         return point
 
     @staticmethod
-    def quat_from_vectors(vfrom, vto):
+    def quat_normalize(q):
+        q = np.array(q, dtype=np.float64)
+
+        n = math.sqrt((q * q).sum())
+
+        if n == 0.0:
+            return np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float64)
+
+        return (q / n).astype(np.float64)
+
+    def quat_from_vectors(self, vfrom, vto):
         # vfrom, vto: length-3 iterables (single vector)
         f = np.array(vfrom, dtype=np.float64)
         t = np.array(vto, dtype=np.float64)
@@ -117,7 +127,7 @@ class FreeRotate:
             quat = np.array([quat[1], quat[2], quat[3], quat[0]],
                             dtype=np.float64)
 
-            return _helpers.quat_normalize(quat)
+            return self.quat_normalize(quat)
 
         axis = np.cross(f, t)  # NOQA
         w = math.sqrt((1.0 + d) * 2.0) * 0.5
@@ -126,4 +136,4 @@ class FreeRotate:
         q = np.array([axis[0] * invs, axis[1] * invs, axis[2] * invs, w],
                      dtype=np.float64)
 
-        return _helpers.quat_normalize(q)
+        return self.quat_normalize(q)

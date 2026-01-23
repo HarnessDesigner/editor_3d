@@ -127,32 +127,32 @@ class Editor3D(wx.Panel):
 
         view_size = _canvas.Canvas.get_view_size()
 
-        self.panel = wx.Panel(self, wx.ID_ANY,
-                              size=view_size.as_int[:-1], pos=(0, 0))
+        self.panel = wx.Panel(self, wx.ID_ANY)  # , size=view_size.as_int[:-1], pos=(0, 0))
+        vsizer = wx.BoxSizer(wx.VERTICAL)
+        hsizer = wx.BoxSizer(wx.HORIZONTAL)
+        hsizer.Add(self.panel, 1, wx.EXPAND)
+        vsizer.Add(hsizer, 1, wx.EXPAND)
+        self.SetSizer(vsizer)
+
+        self._overlay_init = True
+
+        self.axis_overlay = _axis_indicators.Overlay(self.panel)
 
         self.canvas = _canvas.Canvas(self.panel, self.mainframe,
                                      size=view_size.as_int[:-1], pos=(0, 0))
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase_background)
-
-        # w, h = w_size
-        # s = max([w, h])
-        #
-        # x = w
-        # y = h
-        #
-        # s //= 8
-        #
-        # x -= s
-        # y -= s + (s / 2)
-        #
-        self.axis_overlay = _axis_indicators.Overlay(
-            self, size=(100, 100), pos=(0, 0))
-
         self.Bind(wx.EVT_SIZE, self.on_size)
 
     def on_size(self, evt):
+        if self._overlay_init:
+            self._overlay_init = False
+            evt.Skip()
+            return
+
         w, h = evt.GetSize()
+
+        print('size:', w, h)
 
         view_size = _canvas.Canvas.get_view_size()
 
@@ -163,6 +163,7 @@ class Editor3D(wx.Panel):
 
         x1, y1 = self.axis_overlay.GetPosition()
         aw, ah = self.axis_overlay.GetSize()
+        print('overlay size:', aw, ah)
 
         x2 = x1 + aw
         y2 = y1 + ah
@@ -181,6 +182,7 @@ class Editor3D(wx.Panel):
         else:
             y = y1
 
+        print('overlay:', x, y)
         self.axis_overlay.Move((x, y))
         evt.Skip()
 

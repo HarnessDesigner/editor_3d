@@ -8,8 +8,24 @@ from ...wrappers.decimal import Decimal as _decimal
 from ...geometry import point as _point
 from ...objects.objects3d.mixins import angle as _arrow_ring
 from ...objects.objects3d.mixins import move as _arrow_move
-from ...objects.objects3d import cavity as _cavity
-from ...objects.objects3d import housing as _housing
+# from ...objects.objects3d import cavity as _cavity
+# from ...objects.objects3d import housing as _housing
+# from ...objects.objects3d import wire as _wire
+# from ...objects.objects3d import cpa_lock as _cpa_lock
+# from ...objects.objects3d import tpa_lock as _tpa_lock
+# from ...objects.objects3d import bundle_layout as _bundle_layout
+# from ...objects.objects3d import wire_marker as _wire_marker
+# from ...objects.objects3d import bundle as _bundle
+# from ...objects.objects3d import wire_layout as _wire_layout
+# from ...objects.objects3d import terminal as _terminal
+# from ...objects.objects3d import splice as _splice
+# from ...objects.objects3d import transition as _transition
+# from ...objects.objects3d import seal as _seal
+# from ...objects.objects3d import cover as _cover
+# from ...objects.objects3d import boot as _boot
+# from ...objects.objects3d import wire_service_loop as _wire_service_loop
+
+
 import harness_designer as _hd
 
 Config = _canvas.Config
@@ -95,42 +111,42 @@ class MouseHandler:
         self.is_motion = False
 
         selected = _object_picker.find_object(mouse_pos, self.canvas.objects)
-        if isinstance(selected, (_cavity.Cavity, _housing.Housing)):
-            with self.canvas:
-                if selected == self.canvas.selected:
-                    if selected.is_move_shown:
-                        selected.stop_move()
-                        self._drag_obj = None
-                    elif selected.is_angle_shown:
-                        self._free_rot = _free_rotate.FreeRotate(self.canvas, self.canvas.selected, x, y)
-                    else:
-                        selected.is_selected = False
-                        self.canvas.selected = None
-                else:
-                    if self.canvas.selected is not None:
-                        if self.canvas.selected.is_move_shown:
-                            self.canvas.selected.stop_move()
-                        elif self.canvas.selected.is_angle_shown:
-                            self.canvas.selected.stop_angle()
+        # if isinstance(selected, (_cavity.Cavity, _housing.Housing)):
+        #     with self.canvas:
+        #         if selected == self.canvas.selected:
+        #             if selected.is_move_shown:
+        #                 selected.stop_move()
+        #                 self._drag_obj = None
+        #             elif selected.is_angle_shown:
+        #                 self._free_rot = _free_rotate.FreeRotate(self.canvas, self.canvas.selected, x, y)
+        #             else:
+        #                 selected.is_selected = False
+        #                 self.canvas.selected = None
+        #         else:
+        #             if self.canvas.selected is not None:
+        #                 if self.canvas.selected.is_move_shown:
+        #                     self.canvas.selected.stop_move()
+        #                 elif self.canvas.selected.is_angle_shown:
+        #                     self.canvas.selected.stop_angle()
+        #
+        #                 self.canvas.selected.is_selected = False
+        #
+        #             self.canvas.selected = selected
+        #             self.canvas.mainframe.attributes.set_selected(self.canvas.selected)
+        #
+        #             selected.is_selected = True
+        #
+        #             if self.canvas.mainframe.editor3d.move_tool.IsToggled():
+        #                 selected.start_move()
+        #                 self._drag_obj = None
+        #
+        #             elif self.canvas.mainframe.editor3d.rotate_tool.IsToggled():
+        #                 selected.start_angle()
+        #                 self._drag_obj = None
+        #
+        #     self.canvas.Refresh(False)
 
-                        self.canvas.selected.is_selected = False
-
-                    self.canvas.selected = selected
-                    self.canvas.mainframe.attributes.set_selected(self.canvas.selected)
-
-                    selected.is_selected = True
-
-                    if self.canvas.mainframe.editor3d.move_tool.IsToggled():
-                        selected.start_move()
-                        self._drag_obj = None
-
-                    elif self.canvas.mainframe.editor3d.rotate_tool.IsToggled():
-                        selected.start_angle()
-                        self._drag_obj = None
-
-            self.canvas.Refresh(False)
-
-        elif isinstance(selected, (_arrow_move.ArrowMove, _arrow_ring.ArrowRing)):
+        if isinstance(selected, (_arrow_move.ArrowMove, _arrow_ring.ArrowRing)):
             with self.canvas:
                 if self._drag_obj is not None:
                     self._drag_obj.owner.is_selected = False
@@ -220,366 +236,366 @@ class MouseHandler:
             mouse_pos = _point.Point(_decimal(x), _decimal(y))
 
             selected = _object_picker.find_object(mouse_pos, self.canvas.objects)
-            if selected is not None:
-                if isinstance(selected, _wire):
-                    menu = wx.Menu()
-
-                    item = menu.Append(wx.ID_ANY, 'Add Handle')
-                    item = menu.Append(wx.ID_ANY, 'Add Marker')
-                    item = menu.Append(wx.ID_ANY, 'Add Splice')
-                    item = menu.Append(wx.ID_ANY, 'Add Wire')
-                    item = menu.Append(wx.ID_ANY, 'Add Wire Service Loop')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Add to Bundle')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Trace Circuit')
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-                elif isinstance(selected, _wire3d_layout):
-                    menu = wx.Menu()
-                    item = menu.Append(wx.ID_ANY, 'Add Splice')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Trace Circuit')
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-
-                elif isinstance(selected, _cpa_lock):
-                    menu = wx.Menu()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-
-                elif isinstance(selected, _housing):
-                    menu = wx.Menu()
-                    item = menu.Append(wx.ID_ANY, 'Add Seal')
-                    item = menu.Append(wx.ID_ANY, 'Add Terminal')
-                    item = menu.Append(wx.ID_ANY, 'Add CPA Lock')
-                    item = menu.Append(wx.ID_ANY, 'Add TPA Lock')
-                    item = menu.Append(wx.ID_ANY, 'Add Cover')
-                    item = menu.Append(wx.ID_ANY, 'Add Boot')
-
-                    menu.AppendSeparator()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-                elif isinstance(selected, _tpa_lock):
-                    menu = wx.Menu()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-                elif isinstance(selected, _bundle_layout):
-                    menu = wx.Menu()
-                    item = menu.Append(wx.ID_ANY, 'Add Transition')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-
-
-                elif isinstance(selected, _bundle):
-                    menu = wx.Menu()
-                    item = menu.Append(wx.ID_ANY, 'Add Handle')
-                    item = menu.Append(wx.ID_ANY, 'Add Transition')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-
-                elif isinstance(selected, _wire_marker):
-                    menu = wx.Menu()
-                    item = menu.Append(wx.ID_ANY, 'Set Label')
-                    item = menu.Append(wx.ID_ANY, 'Flip Label')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-                elif isinstance(selected, _wire_service_loop):
-                    menu = wx.Menu()
-                    item = menu.Append(wx.ID_ANY, 'Add Wire')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Trace Circuit')
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-                elif isinstance(selected, _boot):
-                    menu = wx.Menu()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-                elif isinstance(selected, _cover):
-                    menu = wx.Menu()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-
-                elif isinstance(selected, _seal):
-                    menu = wx.Menu()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-
-                elif isinstance(selected, _splice):
-                    menu = wx.Menu()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Trace Circuit')
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-                elif isinstance(selected, _terminal):
-                    menu = wx.Menu()
-                    item = menu.Append(wx.ID_ANY, 'Add Wire')
-                    item = menu.Append(wx.ID_ANY, 'Add Seal')
-                    item = menu.Append(wx.ID_ANY, 'Add Wire Service Loop')
-
-                    menu.AppendSeparator()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Trace Circuit')
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
-
-                elif isinstance(selected, _transition):
-                    menu = wx.Menu()
-
-                    rotate_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Rotate')
-
-                    item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
-                    rotate_menu.AppendSeparator()
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
-                    item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
-
-                    mirror_menu = wx.Menu()
-                    menu.AppendSubMenu(rotate_menu, 'Mirror')
-
-                    item = mirror_menu.Append(wx.ID_ANY, 'X')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Y')
-                    item = mirror_menu.Append(wx.ID_ANY, 'Z')
-
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Select')
-                    item = menu.Append(wx.ID_ANY, 'Clone')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Delete')
-                    menu.AppendSeparator()
-                    item = menu.Append(wx.ID_ANY, 'Properties')
+            # if selected is not None:
+            #     if isinstance(selected, _wire.Wire):
+            #         menu = wx.Menu()
+            #
+            #         item = menu.Append(wx.ID_ANY, 'Add Handle')
+            #         item = menu.Append(wx.ID_ANY, 'Add Marker')
+            #         item = menu.Append(wx.ID_ANY, 'Add Splice')
+            #         item = menu.Append(wx.ID_ANY, 'Add Wire')
+            #         item = menu.Append(wx.ID_ANY, 'Add Wire Service Loop')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Add to Bundle')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Trace Circuit')
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #     elif isinstance(selected, _wire_layout.WireLayout):
+            #         menu = wx.Menu()
+            #         item = menu.Append(wx.ID_ANY, 'Add Splice')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Trace Circuit')
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #
+            #     elif isinstance(selected, _cpa_lock):
+            #         menu = wx.Menu()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #
+            #     elif isinstance(selected, _housing):
+            #         menu = wx.Menu()
+            #         item = menu.Append(wx.ID_ANY, 'Add Seal')
+            #         item = menu.Append(wx.ID_ANY, 'Add Terminal')
+            #         item = menu.Append(wx.ID_ANY, 'Add CPA Lock')
+            #         item = menu.Append(wx.ID_ANY, 'Add TPA Lock')
+            #         item = menu.Append(wx.ID_ANY, 'Add Cover')
+            #         item = menu.Append(wx.ID_ANY, 'Add Boot')
+            #
+            #         menu.AppendSeparator()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #     elif isinstance(selected, _tpa_lock):
+            #         menu = wx.Menu()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #     elif isinstance(selected, _bundle_layout):
+            #         menu = wx.Menu()
+            #         item = menu.Append(wx.ID_ANY, 'Add Transition')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #
+            #
+            #     elif isinstance(selected, _bundle):
+            #         menu = wx.Menu()
+            #         item = menu.Append(wx.ID_ANY, 'Add Handle')
+            #         item = menu.Append(wx.ID_ANY, 'Add Transition')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #
+            #     elif isinstance(selected, _wire_marker):
+            #         menu = wx.Menu()
+            #         item = menu.Append(wx.ID_ANY, 'Set Label')
+            #         item = menu.Append(wx.ID_ANY, 'Flip Label')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #     elif isinstance(selected, _wire_service_loop):
+            #         menu = wx.Menu()
+            #         item = menu.Append(wx.ID_ANY, 'Add Wire')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Trace Circuit')
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #     elif isinstance(selected, _boot):
+            #         menu = wx.Menu()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #     elif isinstance(selected, _cover):
+            #         menu = wx.Menu()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #
+            #     elif isinstance(selected, _seal):
+            #         menu = wx.Menu()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #
+            #     elif isinstance(selected, _splice):
+            #         menu = wx.Menu()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Trace Circuit')
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #     elif isinstance(selected, _terminal):
+            #         menu = wx.Menu()
+            #         item = menu.Append(wx.ID_ANY, 'Add Wire')
+            #         item = menu.Append(wx.ID_ANY, 'Add Seal')
+            #         item = menu.Append(wx.ID_ANY, 'Add Wire Service Loop')
+            #
+            #         menu.AppendSeparator()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Trace Circuit')
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
+            #
+            #     elif isinstance(selected, _transition):
+            #         menu = wx.Menu()
+            #
+            #         rotate_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Rotate')
+            #
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'X -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Y -90°')
+            #         rotate_menu.AppendSeparator()
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z +90°')
+            #         item = rotate_menu.Append(wx.ID_ANY, 'Z -90°')
+            #
+            #         mirror_menu = wx.Menu()
+            #         menu.AppendSubMenu(rotate_menu, 'Mirror')
+            #
+            #         item = mirror_menu.Append(wx.ID_ANY, 'X')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Y')
+            #         item = mirror_menu.Append(wx.ID_ANY, 'Z')
+            #
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Select')
+            #         item = menu.Append(wx.ID_ANY, 'Clone')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Delete')
+            #         menu.AppendSeparator()
+            #         item = menu.Append(wx.ID_ANY, 'Properties')
 
         self._process_mouse_release(evt)
         evt.Skip()
