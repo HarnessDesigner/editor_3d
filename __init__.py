@@ -16,6 +16,7 @@ from . import part_3d_preview as _part3d_preview
 
 if TYPE_CHECKING:
     from .. import ui as _ui
+    from .. import objects as _objects
 
 
 class Editor3D(wx.Panel):
@@ -42,9 +43,7 @@ class Editor3D(wx.Panel):
 
         self.global_db = self.mainframe.global_db
 
-        self.transitions = []
-        self.bundles = []
-        self._selected = None
+        self._selected_obj: "_objects.ObjectBase" = None
         self._mouse_click_location = None
         self.bundle_dialog = None
         self._right_motion = None
@@ -144,6 +143,12 @@ class Editor3D(wx.Panel):
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase_background)
         self.Bind(wx.EVT_SIZE, self.on_size)
 
+    def set_selected_object(self, obj: "_objects.ObjectBase"):
+        self._selected_obj = obj
+
+    def get_selected_obj(self) -> "_objects.ObjectBase":
+        return self._selected_obj
+
     def on_size(self, evt):
         if self._overlay_init:
             self._overlay_init = False
@@ -151,8 +156,6 @@ class Editor3D(wx.Panel):
             return
 
         w, h = evt.GetSize()
-
-        print('size:', w, h)
 
         view_size = _canvas.Canvas.get_view_size()
 
@@ -163,7 +166,6 @@ class Editor3D(wx.Panel):
 
         x1, y1 = self.axis_overlay.GetPosition()
         aw, ah = self.axis_overlay.GetSize()
-        print('overlay size:', aw, ah)
 
         x2 = x1 + aw
         y2 = y1 + ah
@@ -182,26 +184,11 @@ class Editor3D(wx.Panel):
         else:
             y = y1
 
-        print('overlay:', x, y)
         self.axis_overlay.Move((x, y))
         evt.Skip()
 
     def on_erase_background(self, _):
         pass
-
-    def SetSelected(self, obj, flag):
-        if not flag and self._selected == obj:
-            self._selected.IsSelected(False)
-            self._selected = None
-        elif flag and self._selected is not None and self._selected != obj:
-            self._selected.IsSelected(False)
-            self._selected = obj
-            self._selected.IsSelected(True)
-        elif flag and self._selected is None:
-            self._selected = obj
-            self._selected.IsSelected(True)
-        else:
-            raise RuntimeError('sanity check')
 
     def on_tool(self, evt):
         self.mode = evt.GetId()
