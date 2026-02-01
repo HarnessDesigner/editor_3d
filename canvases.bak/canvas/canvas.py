@@ -114,13 +114,11 @@ class Canvas(glcanvas.GLCanvas):
 
         self.size = None
 
-        self.WIDTH = size[0]
-        self.HEIGHT = size[1]
-        self.ASPECT = float(self.WIDTH) / self.HEIGHT  # desired aspect ratio
-
         self.Bind(wx.EVT_SIZE, self.on_size)
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase_background)
+
+        self.axis = None
 
         self._grid = None
 
@@ -492,12 +490,15 @@ class Canvas(glcanvas.GLCanvas):
                 GL.glVertex3f(x2, y2, z2)
                 GL.glEnd()
 
+    def set_axis_overlay_angle(self):
+        self.mainframe.editor3d.axis_overlay.set_angle(
+            (self.camera.eye - self.camera.position).inverse)
+
     @_debug.timeit
     def OnDraw(self):
-        self.mainframe.editor3d.axis_overlay.set_angle((self.camera.eye - self.camera.position).inverse)
+        self.set_axis_overlay_angle()
 
         with self.context:
-
             w, h = self.GetSize()
             aspect = w / float(h)
 
@@ -513,17 +514,12 @@ class Canvas(glcanvas.GLCanvas):
 
             GL.glPushMatrix()
 
-            print(self.objects)
-
             objs = self.camera.get_objects_in_view(self.objects)
-
-            print(objs)
 
             for obj in objs:
                 for renderer in obj.triangles:
                     renderer()
 
-            # self._render_bounding_boxes()
             self.draw_grid()
             # self._render_bounding_boxes()
             GL.glPopMatrix()
